@@ -32,10 +32,10 @@ export default class BootScene extends Phaser.Scene {
             ['p2-hurt',          'player-Hurt.png'],
             ['p2-attack-side',   'player-AttackSide.png'],
             ['p2-air-slash',     'player-AirSwordSlash.png'],
-            ['p2-sword-slash',   'player-Sword Slash.png'],
+            ['p2-sword-slash',   'player-SwordSlash.png'],
             ['p2-jump-attack',   'player-JumpAttack.png'],
-            ['p2-attack-up',     'player-Attack Up.png'],
-            ['p2-attack-crouch', 'player-Attack Crouch.png'],
+            ['p2-attack-up',     'player-AttackUp.png'],
+            ['p2-attack-crouch', 'player-AttackCrouch.png'],
             ['p2-crouch-slash',  'player-CrouchSwordSlash.png'],
             ['p2-crouch',        'player-Crouch.png'],
             ['p2-climb',         'player-ClimbLedge.png']
