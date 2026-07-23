@@ -4,6 +4,7 @@ import {
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
+    JUMP_HEIGHT_FACTOR,
     DASH_VELOCITY,
     DASH_DURATION_MS,
     DASH_COOLDOWN_MS,
@@ -19,7 +20,8 @@ import {
     MELEE_DAMAGE,
     MELEE_COMBO_WINDOW_MS,
     MELEE_COOLDOWN_MS,
-    MELEE_OFFSET_X
+    MELEE_OFFSET_X,
+    KEYS
 } from '../config/constants.js';
 import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
@@ -106,7 +108,7 @@ export default class Nivel2Scene extends Phaser.Scene {
         // ── Melee combo ──
         this.isAttacking    = false;
         this.comboStep      = 0;
-        this.lastAttackTime = 0;
+        this.attackEndsAt   = 0;
 
         this.meleeHitbox = this.add.rectangle(0, 0, MELEE_HITBOX_W, MELEE_HITBOX_H);
         this.physics.add.existing(this.meleeHitbox);
@@ -166,20 +168,22 @@ export default class Nivel2Scene extends Phaser.Scene {
         this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
         this.cameras.main.setZoom(1.5);
 
-        // ── Controles ──
+        // ── Controles (esquema único desde constants.KEYS) ──
+        const KC = Phaser.Input.Keyboard.KeyCodes;
         this.keys = this.input.keyboard.addKeys({
-            left:  Phaser.Input.Keyboard.KeyCodes.A,
-            right: Phaser.Input.Keyboard.KeyCodes.D,
-            up:    Phaser.Input.Keyboard.KeyCodes.W,
-            down:  Phaser.Input.Keyboard.KeyCodes.S
+            left:   KC[KEYS.LEFT],
+            right:  KC[KEYS.RIGHT],
+            up:     KC[KEYS.UP],
+            down:   KC[KEYS.DOWN],
+            jump:   KC[KEYS.JUMP],
+            dash:   KC[KEYS.DASH],
+            attack: KC[KEYS.ATTACK]
         });
-        this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.shiftKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
         // ── UIScene en paralelo ──
         this.scene.launch('UIScene');
 
-        this.input.keyboard.on('keydown-M', () => {
+        this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
             this.scene.stop('UIScene');
             this.scene.start('MenuScene');
         });
@@ -191,8 +195,12 @@ export default class Nivel2Scene extends Phaser.Scene {
         this.handleMovement();
         this.handleJump();
 
-        if (Phaser.Input.Keyboard.JustDown(this.attackKey) && this.canDash && !this.isDashing) {
+        if (Phaser.Input.Keyboard.JustDown(this.keys.dash) && this.canDash && !this.isDashing) {
             this.startDash();
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) {
+            this.doMeleeAttack(time);
         }
 
         this.enemies.children.iterate((enemy) => {
@@ -240,11 +248,11 @@ export default class Nivel2Scene extends Phaser.Scene {
 
         if (onGround) this.jumpsUsed = 0;
 
-        if (Phaser.Input.Keyboard.JustDown(this.keys.up) && this.jumpsUsed < MAX_JUMPS) {
+        if (Phaser.Input.Keyboard.JustDown(this.keys.jump) && this.jumpsUsed < MAX_JUMPS) {
             if (this.jumpsUsed === 0) {
-                this.player.setVelocityY(JUMP_VELOCITY);
+                this.player.setVelocityY(JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
             } else {
-                this.player.setVelocityY(DOUBLE_JUMP_VELOCITY);
+                this.player.setVelocityY(DOUBLE_JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
                 this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
             }
             this.jumpsUsed += 1;
@@ -255,18 +263,24 @@ export default class Nivel2Scene extends Phaser.Scene {
     doMeleeAttack(time) {
         if (this.isAttacking) return;
 
-        if (time - this.lastAttackTime > MELEE_COMBO_WINDOW_MS) {
+        // La ventana de combo se mide desde que TERMINA el bloqueo del golpe
+        // anterior (attackEndsAt), no desde su inicio. Así el jugador dispone
+        // de MELEE_COMBO_WINDOW_MS reales para encadenar el siguiente golpe.
+        if (time > this.attackEndsAt + MELEE_COMBO_WINDOW_MS) {
             this.comboStep = 0;
         }
 
-        this.isAttacking    = true;
-        this.lastAttackTime = time;
+        this.isAttacking = true;
 
         const isKick   = this.comboStep === 2;
         const animKey  = isKick ? 'p2-kick' : 'p2-punch';
         const duration = isKick ? 250 : 180;
 
-        this.player.anims.play(animKey, true);
+        this.attackEndsAt = time + duration + MELEE_COOLDOWN_MS;
+
+        // ignoreIfPlaying = false: reinicia la animación aunque sea la misma
+        // clave (punch → punch) para que se vea el impacto de cada golpe.
+        this.player.anims.play(animKey, false);
 
         const offsetX = this.facingRight ? MELEE_OFFSET_X : -MELEE_OFFSET_X;
         this.meleeHitbox.setPosition(this.player.x + offsetX, this.player.y);
@@ -454,6 +468,7 @@ export default class Nivel2Scene extends Phaser.Scene {
             this.canDash     = true;
             this.isAttacking = false;
             this.comboStep   = 0;
+            this.attackEndsAt = 0;
             this.player.body.setAllowGravity(true);
             this.player.clearTint();
             this.registry.events.emit('dash-ready', true);
