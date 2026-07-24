@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants.js';
+import Audio from '../systems/AudioManager.js';
 
 export default class CreditosScene extends Phaser.Scene {
     constructor() {
@@ -7,6 +8,9 @@ export default class CreditosScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.setBackgroundColor('#1a1a2e');
+
+        Audio.attach(this);
+        Audio.playMusic('bgm');
 
         this.add.text(GAME_WIDTH / 2, 80, 'CRÉDITOS', {
             fontSize: '48px',
@@ -43,8 +47,14 @@ export default class CreditosScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         back.setInteractive({ useHandCursor: true });
-        back.on('pointerover', () => back.setStyle({ color: '#ffffff' }));
+        back.on('pointerover', () => {
+            back.setStyle({ color: '#ffffff' });
+            Audio.play('sfx-ui-hover');
+        });
         back.on('pointerout',  () => back.setStyle({ color: '#ffff00' }));
-        back.on('pointerdown', () => this.scene.start('MenuScene'));
+        back.on('pointerdown', () => {
+            Audio.play('sfx-ui-click');
+            Audio.fadeOutAndSwitch(this, 'MenuScene');
+        });
     }
 }

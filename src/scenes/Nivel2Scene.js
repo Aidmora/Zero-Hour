@@ -25,6 +25,7 @@ import {
 } from '../config/constants.js';
 import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
+import Audio, { LAND_MIN_FALL_SPEED, TIMER_WARNING_SECONDS } from '../systems/AudioManager.js';
 
 export default class Nivel2Scene extends Phaser.Scene {
     constructor() {
@@ -32,12 +33,24 @@ export default class Nivel2Scene extends Phaser.Scene {
     }
 
     create() {
+        // ── Audio (A2) ──
+        // El nivel usa 'bgm' porque todavía no existe bgm-nivel2.mp3 (H20).
+        Audio.attach(this);
+        Audio.playMusic('bgm');
+
         // ── Estado inicial ──
         this.score          = 0;
         this.lives          = INITIAL_LIVES;
         this.isInvulnerable = false;
         this.targetScore    = 300; // Objetivo de puntos
         this.timeLeft       = 60;  // Tiempo límite (segundos)
+        // Bloquea update() y las transiciones mientras se funde la música y se
+        // cambia de escena (ver leaveTo).
+        this.isEnding       = false;
+        this.timerWarned    = false;
+        // Estado para el SFX de aterrizaje (transición aire→suelo).
+        this.wasOnGround    = true;
+        this.prevFallSpeed  = 0;
 
         this.registry.events.emit('score-changed', this.score);
         this.registry.events.emit('lives-changed', this.lives);
@@ -49,6 +62,14 @@ export default class Nivel2Scene extends Phaser.Scene {
             callback: () => {
                 this.timeLeft--;
                 this.registry.events.emit('time-changed', this.timeLeft);
+
+                // Alarma de tiempo bajo: una sola vez al cruzar el umbral,
+                // no en cada tick por debajo de él.
+                if (!this.timerWarned && this.timeLeft <= TIMER_WARNING_SECONDS && this.timeLeft > 0) {
+                    this.timerWarned = true;
+                    Audio.play('sfx-timer-warning');
+                }
+
                 if (this.timeLeft <= 0) {
                     this.gameOver();
                 }
@@ -58,6 +79,7 @@ export default class Nivel2Scene extends Phaser.Scene {
         });
 
         this.registry.events.on('enemy-killed', (points) => {
+            Audio.play('sfx-enemy-death');
             this.score += points;
             this.registry.events.emit('score-changed', this.score);
             this.checkWinCondition();
@@ -184,14 +206,15 @@ export default class Nivel2Scene extends Phaser.Scene {
         this.scene.launch('UIScene');
 
         this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
-            this.scene.stop('UIScene');
-            this.scene.start('MenuScene');
+            this.leaveTo('MenuScene');
         });
         this.input.keyboard.on('keydown-L', () => { this.loseLife(); });
         this.input.keyboard.on('keydown-K', () => { this.killNearestEnemy(); });
     }
 
     update(time, _delta) {
+        if (this.isEnding) return;
+
         this.handleMovement();
         this.handleJump();
 
@@ -214,8 +237,19 @@ export default class Nivel2Scene extends Phaser.Scene {
 
     handleMovement() {
         const onGround = this.player.body.blocked.down;
+        this.checkLanding(onGround);
         this.updateHorizontal(onGround);
         this.updateAirAnim(onGround);
+    }
+
+    // El SFX de aterrizaje solo suena en la transición aire→suelo y si la caída
+    // traía velocidad real, no en cada frame apoyado ni en microbotes.
+    checkLanding(onGround) {
+        if (onGround && !this.wasOnGround && this.prevFallSpeed > LAND_MIN_FALL_SPEED) {
+            Audio.play('sfx-land');
+        }
+        this.wasOnGround   = onGround;
+        this.prevFallSpeed = this.player.body.velocity.y;
     }
 
     resolveHorizDir() {
@@ -251,9 +285,12 @@ export default class Nivel2Scene extends Phaser.Scene {
         if (Phaser.Input.Keyboard.JustDown(this.keys.jump) && this.jumpsUsed < MAX_JUMPS) {
             if (this.jumpsUsed === 0) {
                 this.player.setVelocityY(JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
+                Audio.play('sfx-jump');
             } else {
                 this.player.setVelocityY(DOUBLE_JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
                 this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
+                // sfx-double-jump aún no existe: cae en sfx-jump mientras tanto.
+                Audio.play('sfx-double-jump', { fallback: 'sfx-jump' });
             }
             this.jumpsUsed += 1;
             this.player.anims.play('p2-jump', true);
@@ -275,6 +312,9 @@ export default class Nivel2Scene extends Phaser.Scene {
         const isKick   = this.comboStep === 2;
         const animKey  = isKick ? 'p2-kick' : 'p2-punch';
         const duration = isKick ? 250 : 180;
+
+        // Golpes 1 y 2 = punch; el remate del combo = kick.
+        Audio.play(isKick ? 'sfx-kick' : 'sfx-punch');
 
         this.attackEndsAt = time + duration + MELEE_COOLDOWN_MS;
 
@@ -301,6 +341,7 @@ export default class Nivel2Scene extends Phaser.Scene {
 
     onMeleeHitEnemy(_hitbox, enemy) {
         if (!enemy.isDead) {
+            Audio.play('sfx-hit-enemy');
             enemy.takeDamage(MELEE_DAMAGE);
         }
     }
@@ -336,6 +377,7 @@ export default class Nivel2Scene extends Phaser.Scene {
     onCollectStar(_player, star) {
         if (!star.active) return;
         star.disableBody(true, true);
+        Audio.play('sfx-collect');
 
         const ghost = this.add.sprite(star.x, star.y, 'star');
         this.tweens.add({
@@ -356,6 +398,7 @@ export default class Nivel2Scene extends Phaser.Scene {
     startDash() {
         this.isDashing = true;
         this.canDash   = false;
+        Audio.play('sfx-dash');
         this.registry.events.emit('dash-ready', false);
 
         const dir = this.facingRight ? 1 : -1;
@@ -404,6 +447,7 @@ export default class Nivel2Scene extends Phaser.Scene {
         if (enemy.isDead) return;
 
         if (this.isDashing) {
+            Audio.play('sfx-hit-enemy');
             enemy.takeDamage(MELEE_DAMAGE);
             return;
         }
@@ -417,6 +461,7 @@ export default class Nivel2Scene extends Phaser.Scene {
     }
 
     takeDamageFromEnemy() {
+        Audio.play('sfx-player-hurt');
         this.lives -= 1;
         this.registry.events.emit('lives-changed', this.lives);
 
@@ -455,6 +500,9 @@ export default class Nivel2Scene extends Phaser.Scene {
     }
 
     loseLife() {
+        if (this.isEnding) return;
+
+        Audio.play('sfx-player-hurt');
         this.lives -= 1;
         this.registry.events.emit('lives-changed', this.lives);
 
@@ -482,12 +530,27 @@ export default class Nivel2Scene extends Phaser.Scene {
     }
 
     winGame() {
-        this.scene.stop('UIScene');
-        this.scene.start('CreditosScene');
+        if (this.isEnding) return;
+        Audio.play('sfx-victory');
+        this.leaveTo('CreditosScene');
     }
 
     gameOver() {
+        // GameOverScene funde su propia pista sobre la del nivel, así que aquí
+        // no cortamos la música: solo cerramos el HUD.
+        if (this.isEnding) return;
+        this.isEnding = true;
         this.scene.stop('UIScene');
         this.scene.start('GameOverScene', { score: this.score, from: 'Nivel2Scene' });
+    }
+
+    // Salida del nivel con fundido de música; el HUD se cierra justo antes del
+    // cambio para que no desaparezca durante el fundido.
+    leaveTo(sceneKey) {
+        if (this.isEnding) return;
+        this.isEnding = true;
+        Audio.fadeOutAndSwitch(this, sceneKey, undefined, {
+            onBeforeSwitch: () => this.scene.stop('UIScene')
+        });
     }
 }

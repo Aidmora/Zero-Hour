@@ -12,6 +12,30 @@ export default class BootScene extends Phaser.Scene {
         this.load.audio('bgm', 'assets/sounds/bgm-loop.mp3');
         this.load.audio('gameover', 'assets/sounds/game-over.mp3');
 
+        // ── SFX de gameplay y UI (A2 · H04) ──
+        // Solo se listan los archivos que existen HOY en assets/sounds/, para
+        // no provocar 404 al publicar en GitHub Pages. Los que faltan
+        // (sfx-double-jump, bgm-nivel1, bgm-nivel2) están anotados en
+        // docs/CAMBIOS_A2.md: AudioManager avisa por consola y sigue sin romper.
+        const sfxKeys = [
+            'sfx-jump',
+            'sfx-dash',
+            'sfx-punch',
+            'sfx-kick',
+            'sfx-hit-enemy',
+            'sfx-enemy-death',
+            'sfx-collect',
+            'sfx-player-hurt',
+            'sfx-land',
+            'sfx-timer-warning',
+            'sfx-victory',
+            'sfx-ui-click',
+            'sfx-ui-hover'
+        ];
+        for (const key of sfxKeys) {
+            this.load.audio(key, `assets/sounds/${key}.mp3`);
+        }
+
         this.load.tilemapTiledJSON('map-nivel1', 'assets/maps/nivel-1-new.json');
         this.load.tilemapTiledJSON('map-nivel2', 'assets/maps/nivel-2.json');
         this.load.image('tiles-nivel1', 'assets/tilesets/background.png');

@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants.js';
+import Audio from '../systems/AudioManager.js';
 
 export default class MenuScene extends Phaser.Scene {
     constructor() {
@@ -8,10 +9,10 @@ export default class MenuScene extends Phaser.Scene {
     create() {
         this.cameras.main.setBackgroundColor('#1a1a2e');
 
-        this.sound.stopByKey('gameover');
-        if (!this.sound.get('bgm') || !this.sound.get('bgm').isPlaying) {
-            this.sound.play('bgm', { loop: true });
-        }
+        // Si venimos de GameOver, la pista de derrota se funde con el tema del
+        // menú en vez de cortarse en seco (H19).
+        Audio.attach(this);
+        Audio.playMusic('bgm');
 
         this.add.text(GAME_WIDTH / 2, 120, 'Zero Hour', {
             fontSize: '64px',
@@ -27,15 +28,15 @@ export default class MenuScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.createButton(GAME_WIDTH / 2, 290, 'Nivel 1', () => {
-            this.scene.start('Nivel1Scene');
+            Audio.fadeOutAndSwitch(this, 'Nivel1Scene');
         });
 
         this.createButton(GAME_WIDTH / 2, 350, 'Nivel 2', () => {
-            this.scene.start('Nivel2Scene');
+            Audio.fadeOutAndSwitch(this, 'Nivel2Scene');
         });
 
         this.createButton(GAME_WIDTH / 2, 410, 'Créditos', () => {
-            this.scene.start('CreditosScene');
+            Audio.fadeOutAndSwitch(this, 'CreditosScene');
         });
 
         this.createButton(GAME_WIDTH / 2, 470, 'Salir', () => {
@@ -53,9 +54,15 @@ export default class MenuScene extends Phaser.Scene {
 
         btn.setInteractive({ useHandCursor: true });
 
-        btn.on('pointerover', () => btn.setStyle({ color: '#ffffff' }));
+        btn.on('pointerover', () => {
+            btn.setStyle({ color: '#ffffff' });
+            Audio.play('sfx-ui-hover');
+        });
         btn.on('pointerout',  () => btn.setStyle({ color: '#ffff00' }));
-        btn.on('pointerdown', callback);
+        btn.on('pointerdown', () => {
+            Audio.play('sfx-ui-click');
+            callback();
+        });
 
         return btn;
     }

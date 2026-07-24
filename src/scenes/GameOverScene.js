@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants.js';
+import Audio from '../systems/AudioManager.js';
 
 export default class GameOverScene extends Phaser.Scene {
     constructor() {
@@ -13,8 +14,10 @@ export default class GameOverScene extends Phaser.Scene {
     create() {
         this.cameras.main.setBackgroundColor('#3d0000');
 
-        this.sound.stopByKey('bgm');
-        this.sound.play('gameover');
+        // Antes: stopByKey('bgm') + play('gameover') en seco. Ahora la pista de
+        // derrota entra con crossfade sobre la música del nivel (H19).
+        Audio.attach(this);
+        Audio.playMusic('gameover', { loop: false });
 
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, 'GAME OVER', {
             fontSize: '72px',
@@ -36,14 +39,15 @@ export default class GameOverScene extends Phaser.Scene {
             padding: { x: 16, y: 8 }
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-        retry.on('pointerover', () => retry.setStyle({ color: '#ffffff' }));
+        retry.on('pointerover', () => {
+            retry.setStyle({ color: '#ffffff' });
+            Audio.play('sfx-ui-hover');
+        });
         retry.on('pointerout',  () => retry.setStyle({ color: '#ffff00' }));
         retry.on('pointerdown', () => {
-            this.sound.stopByKey('gameover');
-            if (!this.sound.get('bgm') || !this.sound.get('bgm').isPlaying) {
-                this.sound.play('bgm', { loop: true });
-            }
-            this.scene.start(this.fromScene);
+            Audio.play('sfx-ui-click');
+            // El nivel arranca su propia música con fade-in en create().
+            Audio.fadeOutAndSwitch(this, this.fromScene);
         });
 
         const menu = this.add.text(GAME_WIDTH / 2 + 130, GAME_HEIGHT / 2 + 100, 'Menú', {
@@ -53,11 +57,14 @@ export default class GameOverScene extends Phaser.Scene {
             padding: { x: 16, y: 8 }
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-        menu.on('pointerover', () => menu.setStyle({ color: '#ffffff' }));
+        menu.on('pointerover', () => {
+            menu.setStyle({ color: '#ffffff' });
+            Audio.play('sfx-ui-hover');
+        });
         menu.on('pointerout',  () => menu.setStyle({ color: '#ffff00' }));
         menu.on('pointerdown', () => {
-            this.sound.stopByKey('gameover');
-            this.scene.start('MenuScene');
+            Audio.play('sfx-ui-click');
+            Audio.fadeOutAndSwitch(this, 'MenuScene');
         });
     }
 }
