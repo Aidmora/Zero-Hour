@@ -124,6 +124,12 @@ export default class Nivel1Scene extends Phaser.Scene {
         // ── Dash ──
         this.isDashing = false;
         this.canDash = true;
+        // Referencias vivas para poder cortar el dash limpio si se interrumpe:
+        // el timer de fin de dash, los timers pendientes de las afterimages y
+        // los sprites fantasma aún en pantalla.
+        this.dashEndTimer   = null;
+        this.dashAfterTimers = [];
+        this.dashGhosts      = [];
 
         // ── Melee combo ──
         this.isAttacking = false;
@@ -370,6 +376,10 @@ export default class Nivel1Scene extends Phaser.Scene {
     doMeleeAttack(time) {
         if (this.isAttacking) return;
 
+        // Atacar corta el dash en seco: así el tinte azul y las afterimages se
+        // limpian antes de arrancar el golpe y no quedan pegados al sprite.
+        if (this.isDashing) this.endDash();
+
         // La ventana de combo se mide desde que TERMINA el bloqueo del golpe
         // anterior (attackEndsAt), no desde su inicio. Así el jugador dispone
         // de MELEE_COMBO_WINDOW_MS reales para encadenar el siguiente golpe.
@@ -489,15 +499,34 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         this.spawnAfterimages();
 
-        this.time.delayedCall(DASH_DURATION_MS, () => this.endDash());
+        this.dashEndTimer = this.time.delayedCall(DASH_DURATION_MS, () => this.endDash());
 
+        // El cooldown va aparte y NO se cancela al interrumpir el dash: aunque
+        // el dash se corte por ataque o daño, el jugador debe esperar lo mismo
+        // antes de volver a dashear.
         this.time.delayedCall(DASH_COOLDOWN_MS, () => {
             this.canDash = true;
             this.registry.events.emit('dash-ready', true);
         });
     }
 
+    // Cancela los timers pendientes del dash y destruye cualquier fantasma que
+    // siga vivo. Se llama SIEMPRE que el dash termina (fin normal o interrupción)
+    // para que ni el tinte ni las afterimages queden pegados fuera del dash.
+    clearDashFx() {
+        if (this.dashEndTimer) {
+            this.dashEndTimer.remove(false);
+            this.dashEndTimer = null;
+        }
+        this.dashAfterTimers.forEach((t) => t.remove(false));
+        this.dashAfterTimers = [];
+        this.dashGhosts.forEach((g) => g && g.destroy());
+        this.dashGhosts = [];
+    }
+
     endDash() {
+        // Idempotente: si ya se interrumpió el dash (ataque/daño), no repetimos.
+        if (!this.isDashing) return;
         this.isDashing = false;
         // Devuelve el techo normal. Los 500 px/s que arrastra el dash se
         // recortan solos a MAX_VELOCITY_X en el siguiente paso de física, así
@@ -505,25 +534,35 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.player.body.setMaxVelocity(MAX_VELOCITY_X, MAX_VELOCITY_Y);
         this.player.body.setAllowGravity(true);
         this.player.clearTint();
+        this.clearDashFx();
     }
 
     spawnAfterimages() {
         const interval = DASH_DURATION_MS / 4;
         for (let i = 0; i < 4; i++) {
-            this.time.delayedCall(i * interval, () => {
-                if (!this.isDashing) return;
+            const timer = this.time.delayedCall(i * interval, () => {
+                // No generar fantasmas si el dash ya terminó o si el jugador
+                // está atacando: si no, quedan recortes azules congelados en un
+                // frame de ataque alrededor del personaje.
+                if (!this.isDashing || this.isAttacking) return;
                 const ghost = this.add.sprite(this.player.x, this.player.y, 'player1', this.player.frame.name);
                 ghost.setFlipX(this.player.flipX);
                 ghost.setScale(this.player.scaleX, this.player.scaleY);
                 ghost.setTint(DASH_TINT);
                 ghost.setAlpha(0.5);
+                this.dashGhosts.push(ghost);
                 this.tweens.add({
                     targets: ghost,
                     alpha: 0,
                     duration: 250,
-                    onComplete: () => ghost.destroy()
+                    onComplete: () => {
+                        const idx = this.dashGhosts.indexOf(ghost);
+                        if (idx !== -1) this.dashGhosts.splice(idx, 1);
+                        ghost.destroy();
+                    }
                 });
             });
+            this.dashAfterTimers.push(timer);
         }
     }
 
@@ -537,6 +576,10 @@ export default class Nivel1Scene extends Phaser.Scene {
     }
 
     takeDamageFromEnemy() {
+        // Recibir daño en pleno dash lo interrumpe: limpia tinte, fantasmas y
+        // devuelve la física normal antes de aplicar el knockback y el parpadeo.
+        if (this.isDashing) this.endDash();
+
         Audio.play('sfx-player-hurt');
         this.lives -= 1;
         this.registry.events.emit('lives-changed', this.lives);
@@ -595,6 +638,8 @@ export default class Nivel1Scene extends Phaser.Scene {
             this.attackEndsAt = 0;
             this.player.body.setAllowGravity(true);
             this.player.clearTint();
+            // Cancela timers y fantasmas del dash que hubiera al morir.
+            this.clearDashFx();
 
             // Morir en pleno dash deja el techo de velocidad subido y la
             // aceleración pegada: sin esto, el jugador reaparecería disparado.

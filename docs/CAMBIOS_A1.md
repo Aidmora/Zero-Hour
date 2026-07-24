@@ -251,3 +251,92 @@ repo) y examinándolos uno a uno:
 **Prueba manual:** entrar a Nivel 1 y observar cada estado — quieto (idle),
 `A`/`D` (walk), `SPACE` (jump/fall, sin patada), recibir daño (hurt), `J` (punch)
 y combo `J J J` (el tercero es la patada). Ninguna pose debe verse cortada.
+
+---
+
+## 7. Fix dash tint (tinte azul y estelas pegados fuera del dash)
+
+### El bug
+Tras dashear —sobre todo al **atacar justo después** de un dash o al **recibir
+daño a mitad de dash**— el personaje quedaba con un **halo azul recortado**
+alrededor del sprite: una "franja azul" delante y detrás, formada por el tinte
+del dash pegado y/o por sprites fantasma (afterimages) congelados en un frame de
+ataque.
+
+### Causa raíz
+El estado del dash solo se limpiaba en `endDash()`, que se disparaba por un
+`delayedCall` a `DASH_DURATION_MS`. Nada garantizaba la limpieza si el dash se
+**interrumpía** antes de tiempo:
+
+- **`startDash()`** programaba `delayedCall`s sueltos (fin de dash, cooldown y los
+  4 de `spawnAfterimages()`) sin guardar referencia, así que **no se podían
+  cancelar**. Si el dash se cortaba, esos timers seguían vivos y podían crear
+  fantasmas o reaplicar estado *después* de que el dash debía haber terminado.
+- **Atacar durante/tras el dash** no tocaba el estado del dash: el tinte azul y
+  los fantasmas seguían su curso. Peor: `spawnAfterimages()` generaba el ghost con
+  el **frame actual** del jugador, y si había un ataque en marcha quedaban
+  fantasmas congelados en un frame de golpe (los "recortes azules").
+- **Recibir daño de un enemigo** (`takeDamageFromEnemy()`) no interrumpía el dash,
+  así que el tinte podía quedar pegado hasta que el timer de fin de dash corriera.
+
+### El arreglo
+Se centralizó y blindó la limpieza del dash, **idéntico en `Nivel1Scene.js` y
+`Nivel2Scene.js`**:
+
+1. **Referencias a los timers y fantasmas.** En `create()` se añaden
+   `this.dashEndTimer`, `this.dashAfterTimers = []` y `this.dashGhosts = []`.
+   `startDash()` guarda el timer de fin de dash y `spawnAfterimages()` empuja cada
+   `delayedCall` a `dashAfterTimers` y cada sprite a `dashGhosts`. El timer de
+   **cooldown se deja aparte y NO se cancela**: aunque el dash se corte, el jugador
+   debe esperar lo mismo antes de volver a dashear.
+
+2. **`clearDashFx()` nuevo.** Cancela el timer de fin de dash y los pendientes de
+   afterimages con `.remove(false)`, y destruye cualquier ghost que siga vivo,
+   vaciando ambos arrays. Se llama **siempre** que el dash termina.
+
+3. **`endDash()` idempotente y con limpieza.** Ahora sale temprano si el dash ya
+   terminó (`if (!this.isDashing) return;`), y tras restaurar física + `clearTint()`
+   llama a `clearDashFx()`. Así ni el tinte ni los fantasmas quedan fuera del dash,
+   sin importar cómo termine.
+
+4. **Guarda en las afterimages.** El callback de `spawnAfterimages()` ahora
+   comprueba `if (!this.isDashing || this.isAttacking) return;`: no se generan
+   fantasmas si el dash ya acabó o si el jugador está atacando (evita los recortes
+   azules congelados en frame de ataque). El `onComplete` del tween saca el ghost de
+   `dashGhosts` además de destruirlo.
+
+5. **Interrupciones explícitas.** `doMeleeAttack()` y `takeDamageFromEnemy()`
+   llaman `this.endDash()` si `isDashing`, cortando el dash en seco y limpiando
+   tinte + fantasmas antes de arrancar el golpe / el knockback. `loseLife()`
+   (respawn) añade `clearDashFx()` a su reseteo.
+
+> **Nivel 2:** su `onPlayerHitEnemy()` trata el dash contra un enemigo como
+> **dash-attack** (daña al enemigo y sigue dasheando), así que ahí no se interrumpe
+> el dash: termina solo por `endDash()` y queda limpio igual. Nivel 1 no tiene esa
+> rama: dashear contra un enemigo pasa por `takeDamageFromEnemy()` → interrumpe.
+
+El dash y su estela **se siguen viendo con normalidad durante el dash**; solo se
+corrige que el tinte/fantasmas queden pegados fuera de él.
+
+### Verificación
+Prueba automatizada dirigiendo la escena real en el navegador (Phaser corriendo,
+avanzando el game-loop manualmente para disparar los `delayedCall`). Para cada
+caso se comprobó el estado inmediato tras la interrupción y de nuevo a +400 ms
+(por si algún timer pendiente reviviera un fantasma). "Limpio" =
+`!player.isTinted` (tinte 0xffffff) **y** `dashGhosts.length === 0` **y** sin
+sprites fantasma vivos **y** sin timers de afterimage pendientes.
+
+| Caso | Durante el dash | Tras el evento | +400 ms |
+|------|-----------------|----------------|---------|
+| Dash normal | tinte azul + estelas ✓ | — | limpio ✓ |
+| Dash y atacar (`J`) justo después | tinte + estelas ✓ | limpio ✓ | limpio ✓ |
+| Recibir daño a mitad de dash | tinte + estelas ✓ | limpio ✓ | limpio ✓ |
+| Dash contra enemigo | tinte + estelas ✓ | N1 interrumpe → limpio ✓ / N2 sigue dash-attack, limpio al terminar ✓ | limpio ✓ |
+
+Resultado: en **ningún** caso el personaje queda azul ni con recortes; ambas
+escenas se comportan idéntico. Sin errores de consola.
+
+**Prueba manual:** en Nivel 1 y Nivel 2, con `SHIFT` dashear y (a) dejar terminar,
+(b) pulsar `J` justo al acabar/durante el dash, (c) dashear contra un enemigo. El
+tinte azul y las estelas deben desaparecer al terminar el dash en todos los casos;
+el personaje nunca debe quedar con un halo azul ni fantasmas pegados.
