@@ -3,7 +3,17 @@
 // desplazaba el recorte ~3px por columna, mezclando dos poses por frame.
 export const P1_FRAME_WIDTH       = 79;
 export const P1_FRAME_HEIGHT      = 60;
+// Sustituida por FRAGMENTS_PER_LEVEL (H09); ya no la usa ninguna escena. Se
+// deja declarada para no romper nada que la importe mientras se cierra la rama.
 export const COLLECTIBLE_COUNT     = 5;
+// ── Fragmentos del código de desactivación (H09) ──
+// Piezas FINITAS por nivel: reunirlas todas es la condición de victoria (antes
+// era score >= 300, desconectado de lo que el jugador recogía). Seis obliga a
+// recorrer el mapa entero de los 40 tiles de ancho —las piezas se reparten por
+// las plataformas alcanzables, no se amontonan— sin volverse una tarea de
+// farmeo. Si un mapa no diera para seis huecos alcanzables, la escena usa el
+// número realmente colocado como total (ver systems/Fragments.js).
+export const FRAGMENTS_PER_LEVEL   = 6;
 export const JUMP_VELOCITY        = -500;
 export const DOUBLE_JUMP_VELOCITY = -550;
 export const MAX_JUMPS            = 2;

@@ -1,5 +1,5 @@
 import {
-    COLLECTIBLE_COUNT,
+    FRAGMENTS_PER_LEVEL,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
@@ -34,6 +34,7 @@ import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
 import Audio, { LAND_MIN_FALL_SPEED } from '../systems/AudioManager.js';
 import showLevelIntro from '../systems/LevelIntroOverlay.js';
+import { spawnFragments, playFragmentPickupFx } from '../systems/Fragments.js';
 
 export default class Nivel1Scene extends Phaser.Scene {
     constructor() {
@@ -50,7 +51,11 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.score = 0;
         this.lives = INITIAL_LIVES;
         this.isInvulnerable = false;
-        this.targetScore = 300; // Objetivo de puntos
+        // Progreso de fragmentos (H09). El total lo fija spawnFragments() con
+        // las piezas realmente colocadas, no con la constante a pelo. Ya no hay
+        // targetScore: la victoria dejó de medirse en puntos.
+        this.fragmentsCollected = 0;
+        this.fragmentsTotal     = 0;
         // Bloquea update() y las transiciones mientras se funde la música y se
         // cambia de escena: sin esto, una caída al vacío dispararía loseLife()
         // en cada frame del fundido.
@@ -62,11 +67,12 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.registry.events.emit('lives-changed', this.lives);
         this.registry.events.emit('dash-ready', true);
 
+        // Matar enemigos sigue puntuando, pero ya no puede ganar el nivel: la
+        // victoria depende solo de los fragmentos, así que aquí no se comprueba.
         this.registry.events.on('enemy-killed', (points) => {
             Audio.play('sfx-enemy-death');
             this.score += points;
             this.registry.events.emit('score-changed', this.score);
-            this.checkWinCondition();
         });
         this.events.once('shutdown', () => {
             this.registry.events.off('enemy-killed');
@@ -159,15 +165,25 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, null, this);
         this.physics.add.overlap(this.meleeHitbox, this.enemies, this.onMeleeHitEnemy, null, this);
 
-        // ── Coleccionables ──
-        this.collectibles = this.physics.add.group({
+        // ── Fragmentos del código de desactivación (H09) ──
+        // Set finito y repartido por el nivel; sin respawn. El punto de partida
+        // que se pasa es la posición del jugador recién creado: desde ahí se
+        // descartan las plataformas a las que no se llega saltando.
+        this.fragments = this.physics.add.group({
             allowGravity: false,
             immovable: true
         });
 
-        this.spawnInitialCollectibles();
+        this.fragmentsTotal = spawnFragments(this, {
+            group:  this.fragments,
+            layer:  this.capaSuelo,
+            map:    this.mapa,
+            count:  FRAGMENTS_PER_LEVEL,
+            startX: this.player.x,
+            startY: this.player.y
+        });
 
-        this.physics.add.overlap(this.player, this.collectibles, this.onCollectStar, null, this);
+        this.physics.add.overlap(this.player, this.fragments, this.onCollectFragment, null, this);
 
         // ── Animaciones ──
         // Mapa índice → pose del spritesheet player-1 (rejilla 14×3, frames 0-41;
@@ -229,6 +245,16 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         // ── UIScene en paralelo ──
         this.scene.launch('UIScene');
+
+        // El HUD todavía no existe cuando se colocan los fragmentos, y su
+        // create() no corre hasta el frame siguiente: si emitiéramos el estado
+        // inicial (0/N) allí, nadie lo escucharía. Se emite en cuanto UIScene
+        // está montada.
+        if (this.scene.isActive('UIScene')) {
+            this.emitFragmentProgress();
+        } else {
+            this.scene.get('UIScene').events.once('create', () => this.emitFragmentProgress());
+        }
 
         this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
             this.leaveTo('MenuScene');
@@ -426,53 +452,33 @@ export default class Nivel1Scene extends Phaser.Scene {
         }
     }
 
-    spawnInitialCollectibles() {
-        for (let i = 0; i < COLLECTIBLE_COUNT; i++) {
-            this.spawnCollectibleAtRandomSpot();
-        }
+    // Señal para el HUD (H07). Payload:
+    //   'fragments-changed' → { collected: number, total: number }
+    // Se emite al montar el nivel (0/N) y en cada recogida.
+    emitFragmentProgress() {
+        this.registry.events.emit('fragments-changed', {
+            collected: this.fragmentsCollected,
+            total:     this.fragmentsTotal
+        });
     }
 
-    spawnCollectibleAtRandomSpot() {
-        const maxTries = 100;
-        for (let i = 0; i < maxTries; i++) {
-            const tx = Phaser.Math.Between(1, this.mapa.width - 2);
-            const ty = Phaser.Math.Between(1, this.mapa.height - 2);
-            const tileAt = this.capaSuelo.getTileAt(tx, ty);
-            const tileBelow = this.capaSuelo.getTileAt(tx, ty + 1);
-
-            if (!tileAt && tileBelow) {
-                const wx = tx * this.mapa.tileWidth + this.mapa.tileWidth / 2;
-                const wy = ty * this.mapa.tileHeight + this.mapa.tileHeight / 2;
-                const star = this.collectibles.create(wx, wy, 'star');
-                star.setOrigin(0.5, 0.5);
-                star.body.setSize(20, 20).setOffset(2, 2);
-
-                this.tweens.add({ targets: star, angle: 360, duration: 3000, repeat: -1 });
-                this.tweens.add({ targets: star, y: wy - 4, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-                return;
-            }
-        }
-    }
-
-    onCollectStar(_player, star) {
-        if (!star.active) return;
-        star.disableBody(true, true);
+    onCollectFragment(_player, fragment) {
+        if (!fragment.active) return;
+        // Sin delayedCall de respawn: las piezas del código son finitas. Una vez
+        // recogida, esa pieza ya no vuelve al nivel.
+        fragment.disableBody(true, true);
         Audio.play('sfx-collect');
 
-        const ghost = this.add.sprite(star.x, star.y, 'star');
-        this.tweens.add({
-            targets: ghost,
-            scale: 2,
-            alpha: 0,
-            duration: 300,
-            onComplete: () => ghost.destroy()
-        });
+        this.fragmentsCollected += 1;
+        playFragmentPickupFx(this, fragment.x, fragment.y, this.fragmentsCollected, this.fragmentsTotal);
+        this.emitFragmentProgress();
 
+        // Recoger sigue puntuando: el score no desaparece, solo deja de ser la
+        // condición de victoria.
         this.score += SCORE_PER_COLLECTIBLE;
         this.registry.events.emit('score-changed', this.score);
-        this.checkWinCondition();
 
-        this.time.delayedCall(500, () => this.spawnCollectibleAtRandomSpot());
+        this.checkWinCondition();
     }
 
     startDash() {
@@ -656,8 +662,11 @@ export default class Nivel1Scene extends Phaser.Scene {
         }
     }
 
+    // El nivel se gana al reunir el código completo (H09), no al llegar a una
+    // cifra de puntos. fragmentsTotal > 0 evita declarar victoria en el frame 0
+    // si un mapa se quedara sin fragmentos colocables.
     checkWinCondition() {
-        if (this.score >= this.targetScore) {
+        if (this.fragmentsTotal > 0 && this.fragmentsCollected >= this.fragmentsTotal) {
             this.winGame();
         }
     }
