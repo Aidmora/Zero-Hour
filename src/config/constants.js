@@ -4,7 +4,6 @@
 export const P1_FRAME_WIDTH       = 79;
 export const P1_FRAME_HEIGHT      = 60;
 export const COLLECTIBLE_COUNT     = 5;
-export const PLAYER_SPEED         = 220;
 export const JUMP_VELOCITY        = -500;
 export const DOUBLE_JUMP_VELOCITY = -550;
 export const MAX_JUMPS            = 2;
@@ -24,6 +23,38 @@ export const DASH_TINT            = 0x66ccff;
 // ambas escenas se sientan idénticas. Se mantiene 0.75 porque es el valor
 // con el que se tuneó y probó el plataformeo de Nivel 1.
 export const JUMP_HEIGHT_FACTOR   = 0.75;
+
+// ── Game feel: coyote time y jump buffering (E1 · H11) ──
+// COYOTE_TIME_MS: ventana de gracia tras salir de una plataforma durante la
+//   cual el salto de suelo sigue siendo válido. 110 ms ≈ 6-7 frames a 60 fps:
+//   perdona el "me caí del borde" sin llegar a leerse como salto desde el aire.
+// JUMP_BUFFER_MS: ventana de anticipación. Si se pulsa salto hasta 130 ms antes
+//   de tocar suelo, el salto se guarda y se ejecuta solo al aterrizar.
+export const COYOTE_TIME_MS       = 110;
+export const JUMP_BUFFER_MS       = 130;
+
+// ── Game feel: aceleración y fricción horizontal (E1 · H12) ──
+// Sustituyen al antiguo PLAYER_SPEED (220) + setVelocityX directo.
+// MAX_VELOCITY_X mantiene esos mismos 220 px/s de tope para no alterar las
+// distancias de salto con las que están medidos los mapas; lo que cambia es
+// cómo se llega a esa velocidad y cómo se abandona.
+// MAX_VELOCITY_Y hay que declararlo aparte: Arcade recorta AMBOS ejes contra
+// maxVelocity, y setMaxVelocity(220) capando también la caída rompería la
+// gravedad. 1000 px/s funciona como velocidad terminal (la caída libre de una
+// pantalla completa llega a ~930).
+export const MAX_VELOCITY_X       = 220;
+export const MAX_VELOCITY_Y       = 1000;
+// Aceleración en suelo: 220 px/s en ~110 ms. Arranque con peso pero sin retardo.
+export const ACCELERATION         = 2000;
+// Aceleración en aire: ~55 % de la de suelo → menos control aéreo (estándar del
+// género). Corregir la trayectoria a media parábola cuesta, pero es posible.
+export const ACCELERATION_AIR     = 1100;
+// Frenado en suelo: para en ~90 ms desde velocidad máxima. Por encima de la
+// aceleración a propósito, para que soltar la tecla no se sienta resbaladizo.
+export const DRAG_GROUND          = 2400;
+// Frenado en aire: bajo, para conservar la inercia del salto. Soltar la tecla
+// en el aire no corta el impulso de golpe.
+export const DRAG_AIR             = 380;
 
 // ── Esquema único de controles (H01) ──
 // Los valores son claves válidas de Phaser.Input.Keyboard.KeyCodes.

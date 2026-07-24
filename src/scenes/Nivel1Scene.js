@@ -1,10 +1,17 @@
 import {
     COLLECTIBLE_COUNT,
-    PLAYER_SPEED,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
     JUMP_HEIGHT_FACTOR,
+    COYOTE_TIME_MS,
+    JUMP_BUFFER_MS,
+    MAX_VELOCITY_X,
+    MAX_VELOCITY_Y,
+    ACCELERATION,
+    ACCELERATION_AIR,
+    DRAG_GROUND,
+    DRAG_AIR,
     DASH_VELOCITY,
     DASH_DURATION_MS,
     DASH_COOLDOWN_MS,
@@ -89,8 +96,19 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         this.physics.add.collider(this.player, this.capaSuelo);
 
-        // ── Doble salto ──
-        this.jumpsUsed = 0;
+        // ── Movimiento con aceleración y fricción (E1 · H12) ──
+        // El eje X ya no se fija con setVelocityX: se conduce con aceleración +
+        // drag y es maxVelocity quien pone el tope. El eje Y se declara aparte
+        // porque Arcade recorta los dos ejes contra maxVelocity y un tope de
+        // 220 en Y rompería la gravedad.
+        this.player.body.setMaxVelocity(MAX_VELOCITY_X, MAX_VELOCITY_Y);
+        this.player.body.setDragX(DRAG_GROUND);
+
+        // ── Doble salto + coyote time y jump buffer (E1 · H11) ──
+        this.jumpsUsed        = 0;
+        // -Infinity = "nunca": ni hay coyote vivo ni salto en cola al empezar.
+        this.lastGroundedTime = -Infinity;
+        this.jumpBufferedAt   = -Infinity;
 
         this.doubleJumpFx = this.add.particles(0, 0, 'jumpParticle', {
             speed: { min: 80, max: 160 },
@@ -225,7 +243,7 @@ export default class Nivel1Scene extends Phaser.Scene {
         if (this.isEnding) return;
 
         this.handleMovement();
-        this.handleJump();
+        this.handleJump(time);
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.dash) && this.canDash && !this.isDashing) {
             this.startDash();
@@ -245,10 +263,18 @@ export default class Nivel1Scene extends Phaser.Scene {
     }
 
     handleMovement() {
-        const onGround = this.player.body.blocked.down;
+        const onGround = this.isOnGround();
         this.checkLanding(onGround);
         this.updateHorizontal(onGround);
         this.updateAirAnim(onGround);
+    }
+
+    // Criterio único de "está apoyado", compartido por animación, drag y salto.
+    // Antes el movimiento miraba solo blocked.down y el salto blocked.down ||
+    // touching.down, así que podían discrepar un frame.
+    isOnGround() {
+        const body = this.player.body;
+        return body.blocked.down || body.touching.down;
     }
 
     // El SFX de aterrizaje solo suena en la transición aire→suelo y si la caída
@@ -269,7 +295,18 @@ export default class Nivel1Scene extends Phaser.Scene {
 
     updateHorizontal(onGround) {
         const dir = this.resolveHorizDir();
-        if (!this.isDashing) this.player.setVelocityX(dir * PLAYER_SPEED);
+
+        // Durante el dash no se toca el eje X: startDash fija la velocidad y
+        // sube el techo de maxVelocity, y aplicar aquí aceleración o drag lo
+        // frenaría a mitad de recorrido.
+        if (!this.isDashing) {
+            const body = this.player.body;
+            body.setDragX(onGround ? DRAG_GROUND : DRAG_AIR);
+            // Arcade aplica el drag SOLO cuando la aceleración del eje es 0,
+            // así que es soltar las teclas (dir = 0) lo que deja frenar.
+            body.setAccelerationX(dir * (onGround ? ACCELERATION : ACCELERATION_AIR));
+        }
+
         if (dir !== 0) {
             this.facingRight = dir > 0;
             this.player.setFlipX(!this.facingRight);
@@ -285,25 +322,49 @@ export default class Nivel1Scene extends Phaser.Scene {
         }
     }
 
-    handleJump() {
-        const body = this.player.body;
-        const onGround = body.blocked.down || body.touching.down;
+    handleJump(time) {
+        const onGround = this.isOnGround();
 
-        if (onGround) this.jumpsUsed = 0;
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.jump) && this.jumpsUsed < MAX_JUMPS) {
-            if (this.jumpsUsed === 0) {
-                this.player.setVelocityY(JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
-                Audio.play('sfx-jump');
-            } else {
-                this.player.setVelocityY(DOUBLE_JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
-                this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
-                // sfx-double-jump aún no existe: cae en sfx-jump mientras tanto.
-                Audio.play('sfx-double-jump', { fallback: 'sfx-jump' });
-            }
-            this.jumpsUsed += 1;
-            this.player.anims.play('p1-jump', true);
+        if (onGround) {
+            this.jumpsUsed        = 0;
+            this.lastGroundedTime = time;
         }
+
+        // Jump buffering: la pulsación se guarda aunque en este instante no sea
+        // válida (aún en el aire y sin saltos disponibles). Al aterrizar, el
+        // bloque de abajo la encuentra viva y salta solo.
+        if (Phaser.Input.Keyboard.JustDown(this.keys.jump)) {
+            this.jumpBufferedAt = time;
+        }
+
+        // Coyote time: al salir de una plataforma el salto de suelo sigue vivo
+        // durante COYOTE_TIME_MS. Pasada la ventana se da por gastado, así
+        // caerse de un borde deja el doble salto y no dos saltos aéreos
+        // completos (que es lo que regalaba el código anterior).
+        const inCoyote = time - this.lastGroundedTime <= COYOTE_TIME_MS;
+        if (!onGround && !inCoyote && this.jumpsUsed === 0) {
+            this.jumpsUsed = 1;
+        }
+
+        const bufferAlive = time - this.jumpBufferedAt <= JUMP_BUFFER_MS;
+        if (!bufferAlive || this.jumpsUsed >= MAX_JUMPS) return;
+
+        // Consumir el buffer ANTES de saltar: si no, la misma pulsación seguiría
+        // viva el frame siguiente y encadenaría el doble salto ella sola.
+        this.jumpBufferedAt = -Infinity;
+
+        if (this.jumpsUsed === 0) {
+            this.player.setVelocityY(JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
+            Audio.play('sfx-jump');
+        } else {
+            this.player.setVelocityY(DOUBLE_JUMP_VELOCITY * JUMP_HEIGHT_FACTOR);
+            this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
+            // sfx-double-jump aún no existe: cae en sfx-jump mientras tanto.
+            Audio.play('sfx-double-jump', { fallback: 'sfx-jump' });
+        }
+
+        this.jumpsUsed += 1;
+        this.player.anims.play('p1-jump', true);
     }
 
     doMeleeAttack(time) {
@@ -410,10 +471,20 @@ export default class Nivel1Scene extends Phaser.Scene {
         Audio.play('sfx-dash');
         this.registry.events.emit('dash-ready', false);
 
-        const dir = this.facingRight ? 1 : -1;
+        const dir  = this.facingRight ? 1 : -1;
+        const body = this.player.body;
+
+        // El dash (500 px/s) va muy por encima de MAX_VELOCITY_X (220) y Arcade
+        // recorta contra maxVelocity en CADA paso de física: sin subir el techo,
+        // el dash quedaría reducido a velocidad de carrera. Además se anulan
+        // aceleración y drag para que el sistema de movimiento no lo frene.
+        body.setAccelerationX(0);
+        body.setDragX(0);
+        body.setMaxVelocity(DASH_VELOCITY, MAX_VELOCITY_Y);
+
         this.player.setVelocityX(DASH_VELOCITY * dir);
         this.player.setVelocityY(0);
-        this.player.body.setAllowGravity(false);
+        body.setAllowGravity(false);
         this.player.setTint(DASH_TINT);
 
         this.spawnAfterimages();
@@ -428,6 +499,10 @@ export default class Nivel1Scene extends Phaser.Scene {
 
     endDash() {
         this.isDashing = false;
+        // Devuelve el techo normal. Los 500 px/s que arrastra el dash se
+        // recortan solos a MAX_VELOCITY_X en el siguiente paso de física, así
+        // que la salida es una desaceleración limpia, no un frenazo a cero.
+        this.player.body.setMaxVelocity(MAX_VELOCITY_X, MAX_VELOCITY_Y);
         this.player.body.setAllowGravity(true);
         this.player.clearTint();
     }
@@ -520,6 +595,18 @@ export default class Nivel1Scene extends Phaser.Scene {
             this.attackEndsAt = 0;
             this.player.body.setAllowGravity(true);
             this.player.clearTint();
+
+            // Morir en pleno dash deja el techo de velocidad subido y la
+            // aceleración pegada: sin esto, el jugador reaparecería disparado.
+            this.player.body.setAccelerationX(0);
+            this.player.body.setDragX(DRAG_GROUND);
+            this.player.body.setMaxVelocity(MAX_VELOCITY_X, MAX_VELOCITY_Y);
+
+            // Salto en cola descartado, y coyote fresco: el respawn cae desde el
+            // aire y no queremos que gaste el salto de suelo antes de aterrizar.
+            this.jumpBufferedAt   = -Infinity;
+            this.lastGroundedTime = this.time.now;
+
             this.registry.events.emit('dash-ready', true);
         }
     }
