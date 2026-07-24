@@ -26,6 +26,7 @@ import {
 import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
 import Audio, { LAND_MIN_FALL_SPEED, TIMER_WARNING_SECONDS } from '../systems/AudioManager.js';
+import showLevelIntro from '../systems/LevelIntroOverlay.js';
 
 export default class Nivel2Scene extends Phaser.Scene {
     constructor() {
@@ -210,6 +211,14 @@ export default class Nivel2Scene extends Phaser.Scene {
         });
         this.input.keyboard.on('keydown-L', () => { this.loseLife(); });
         this.input.keyboard.on('keydown-K', () => { this.killNearestEnemy(); });
+
+        // ── Overlay de controles y contexto (A3 · H23) ──
+        // Va al final de create() para quedar por encima del mundo ya montado.
+        showLevelIntro(this, {
+            title:   'Nivel 2: Fortaleza Industrial',
+            hero:    'Thor',
+            context: 'Últimos fragmentos dentro de la Fortaleza. El contador de la bomba ya corre.'
+        });
     }
 
     update(time, _delta) {

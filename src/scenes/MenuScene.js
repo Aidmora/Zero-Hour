@@ -14,42 +14,50 @@ export default class MenuScene extends Phaser.Scene {
         Audio.attach(this);
         Audio.playMusic('bgm');
 
-        this.add.text(GAME_WIDTH / 2, 120, 'Zero Hour', {
-            fontSize: '64px',
+        this.add.text(GAME_WIDTH / 2, 78, 'Zero Hour', {
+            fontSize: '58px',
             fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        this.add.text(GAME_WIDTH / 2, 190, 'Juegos Interactivos - EPN', {
+        this.add.text(GAME_WIDTH / 2, 132, 'Juegos Interactivos - EPN', {
             fontSize: '18px',
             color: '#cccccc'
         }).setOrigin(0.5);
 
-        this.createButton(GAME_WIDTH / 2, 290, 'Nivel 1', () => {
+        // Cinco entradas en 480 px de alto: la rejilla se compacta (antes había
+        // cuatro y la última, en y=470, ya se salía del viewport).
+        this.createButton(GAME_WIDTH / 2, 200, 'Nivel 1', () => {
             Audio.fadeOutAndSwitch(this, 'Nivel1Scene');
         });
 
-        this.createButton(GAME_WIDTH / 2, 350, 'Nivel 2', () => {
+        this.createButton(GAME_WIDTH / 2, 256, 'Nivel 2', () => {
             Audio.fadeOutAndSwitch(this, 'Nivel2Scene');
         });
 
-        this.createButton(GAME_WIDTH / 2, 410, 'Créditos', () => {
+        // Rejugar la intro (H08): no fundimos la música porque IntroScene usa
+        // la misma pista y reiniciarla la haría saltar al segundo 0.
+        this.createButton(GAME_WIDTH / 2, 312, 'Historia', () => {
+            this.scene.start('IntroScene');
+        });
+
+        this.createButton(GAME_WIDTH / 2, 368, 'Créditos', () => {
             Audio.fadeOutAndSwitch(this, 'CreditosScene');
         });
 
-        this.createButton(GAME_WIDTH / 2, 470, 'Salir', () => {
+        this.createButton(GAME_WIDTH / 2, 424, 'Salir', () => {
             this.showExitMessage();
         });
     }
 
     createButton(x, y, label, callback) {
         const btn = this.add.text(x, y, label, {
-            fontSize: '32px',
+            fontSize: '28px',
             color: '#ffff00',
             backgroundColor: '#00000099',
-            padding: { x: 24, y: 10 }
+            padding: { x: 24, y: 8 }
         }).setOrigin(0.5);
 
         btn.setInteractive({ useHandCursor: true });

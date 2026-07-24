@@ -222,8 +222,10 @@ menú `M`. Teclas debug: `L` pierde una vida, `K` mata al enemigo más cercano.
 
 Servidor local (`python -m http.server 8000`), Chrome:
 
-- **94 peticiones de red, todas HTTP 200. Ningún 404.** Los 15 audios cargan
-  correctamente.
+- **94 peticiones de red, todas HTTP 200. Ningún 404 de assets.** Los 15 audios
+  cargan correctamente. Confirmado también desde el log del servidor: 120×200,
+  69×304 y solo 2×404, ambos de `/favicon.ico` — petición automática del
+  navegador que el juego no referencia.
 - **Sin errores ni excepciones del juego en consola** recorriendo Menú → Nivel 1
   → Game Over → Reintentar → Nivel 1 → Menú → Nivel 2, con saltos, dash, combo,
   golpes y muertes de enemigos. (Los 3 errores que aparecen en consola son ruido

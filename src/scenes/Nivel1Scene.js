@@ -26,6 +26,7 @@ import {
 import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
 import Audio, { LAND_MIN_FALL_SPEED } from '../systems/AudioManager.js';
+import showLevelIntro from '../systems/LevelIntroOverlay.js';
 
 export default class Nivel1Scene extends Phaser.Scene {
     constructor() {
@@ -210,6 +211,14 @@ export default class Nivel1Scene extends Phaser.Scene {
         });
         this.input.keyboard.on('keydown-L', () => { this.loseLife(); });
         this.input.keyboard.on('keydown-K', () => { this.killNearestEnemy(); });
+
+        // ── Overlay de controles y contexto (A3 · H23) ──
+        // Va al final de create() para quedar por encima del mundo ya montado.
+        showLevelIntro(this, {
+            title:   'Nivel 1: Almacén Industrial',
+            hero:    'Monje Chi',
+            context: 'Fragmentos del código de desactivación detectados en el Almacén Industrial.'
+        });
     }
 
     update(time, _delta) {

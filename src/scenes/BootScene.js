@@ -134,6 +134,6 @@ export default class BootScene extends Phaser.Scene {
         gs.generateTexture('star', 24, 24);
         gs.destroy();
 
-        this.scene.start('MenuScene');
+        this.scene.start('IntroScene');
     }
 }
