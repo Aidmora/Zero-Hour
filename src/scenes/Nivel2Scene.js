@@ -21,6 +21,13 @@ import {
     PLAYER_INVULN_MS,
     PLAYER_KNOCKBACK_X,
     PLAYER_KNOCKBACK_Y,
+    DAMAGE_SHAKE_MS,
+    DAMAGE_SHAKE_INTENSITY,
+    DAMAGE_SHAKE_INTENSITY_FALL,
+    DAMAGE_FLASH_COLOR,
+    DAMAGE_FLASH_ALPHA,
+    DAMAGE_FLASH_IN_MS,
+    DAMAGE_FLASH_OUT_MS,
     GAME_HEIGHT,
     MELEE_HITBOX_W,
     MELEE_HITBOX_H,
@@ -214,6 +221,10 @@ export default class Nivel2Scene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, this.mapa.widthInPixels, this.mapa.heightInPixels);
         this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
         this.cameras.main.setZoom(1.5);
+
+        // ── Feedback de daño (H21) ──
+        // Después de setZoom: el rectángulo del destello se escala por 1/zoom.
+        this.createDamageFlash();
 
         // ── Controles (esquema único desde constants.KEYS) ──
         const KC = Phaser.Input.Keyboard.KeyCodes;
@@ -566,6 +577,64 @@ export default class Nivel2Scene extends Phaser.Scene {
         }
     }
 
+    // ── Feedback visual de daño (H21) ───────────────────────────────────────
+    // Shake + destello rojo. Son efectos de la escena de juego: UIScene corre
+    // en paralelo con su propia cámara, así que el HUD ni se sacude ni se tiñe.
+
+    // Rectángulo del destello: se crea una sola vez y se reutiliza en cada
+    // golpe. Va anclado al centro de la cámara con scrollFactor 0 y escalado
+    // por 1/zoom (mismo truco que LevelIntroOverlay), para que cubra exacto la
+    // pantalla tanto aquí (zoom 1.5) como en Nivel 1 (zoom 1).
+    createDamageFlash() {
+        const cam = this.cameras.main;
+        this.damageFlash = this.add.rectangle(
+            cam.width / 2, cam.height / 2,
+            cam.width, cam.height,
+            DAMAGE_FLASH_COLOR, 1
+        );
+        this.damageFlash.setScrollFactor(0);
+        this.damageFlash.setScale(1 / cam.zoom);
+        this.damageFlash.setDepth(900); // sobre el mundo, bajo el overlay de intro (1000)
+        this.damageFlash.setAlpha(0);
+    }
+
+    /**
+     * Sacude la cámara y lanza el destello rojo.
+     * @param {number} intensity intensidad del shake (fracción del tamaño de cámara)
+     */
+    damageFeedback(intensity = DAMAGE_SHAKE_INTENSITY) {
+        if (this.isEnding) return;
+
+        const cam = this.cameras.main;
+
+        // División por zoom²: Phaser aplica el zoom DOS veces al shake (al
+        // generar el desplazamiento y otra vez al trasladar la matriz de la
+        // cámara, que ya está escalada). Medido en el navegador: con 0.010 sin
+        // compensar, Nivel 1 (zoom 1) tiembla ±13 px de pantalla y Nivel 2
+        // (zoom 1.5) ±29 px. Dividiendo por zoom², ambos dan los mismos ±13 px.
+        // El shake solo desplaza el render — no toca scroll, bounds ni
+        // startFollow, así que al terminar la cámara sigue al jugador igual.
+        cam.shake(DAMAGE_SHAKE_MS, intensity / (cam.zoom * cam.zoom));
+
+        if (!this.damageFlash) return;
+        // Dos tweens encadenados en vez de un yoyo: la bajada dura más que la
+        // subida, así el golpe entra seco y se disuelve en lugar de parpadear.
+        this.tweens.killTweensOf(this.damageFlash);
+        this.damageFlash.setAlpha(0);
+        this.tweens.add({
+            targets:  this.damageFlash,
+            alpha:    DAMAGE_FLASH_ALPHA,
+            duration: DAMAGE_FLASH_IN_MS,
+            onComplete: () => {
+                this.tweens.add({
+                    targets:  this.damageFlash,
+                    alpha:    0,
+                    duration: DAMAGE_FLASH_OUT_MS
+                });
+            }
+        });
+    }
+
     onPlayerHitEnemy(player, enemy) {
         if (enemy.isDead) return;
 
@@ -596,6 +665,8 @@ export default class Nivel2Scene extends Phaser.Scene {
             this.gameOver();
             return;
         }
+
+        this.damageFeedback();
 
         this.isInvulnerable = true;
         this.player.anims.play('p2-hurt', true);
@@ -636,6 +707,10 @@ export default class Nivel2Scene extends Phaser.Scene {
         if (this.lives <= 0) {
             this.gameOver();
         } else {
+            // Caer al vacío pega más fuerte que un enemigo: además de la vida,
+            // cuesta todo el avance hasta el punto de reaparición.
+            this.damageFeedback(DAMAGE_SHAKE_INTENSITY_FALL);
+
             this.player.setVelocity(0, 0);
             this.player.setPosition(450, 50);
             this.jumpsUsed   = 0;

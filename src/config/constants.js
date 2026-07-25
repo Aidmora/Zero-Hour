@@ -82,6 +82,30 @@ export const CHASER_DETECT_RADIUS = 300;
 
 export const ENEMY_RESPAWN_MS     = 5000;
 export const PLAYER_INVULN_MS     = 1500;
+
+// ── Feedback visual de daño (H21) ──
+// Sacudida de cámara + destello rojo. Ambos efectos son un acento: duran menos
+// que el parpadeo de invulnerabilidad (1500 ms) para no solaparse con el
+// siguiente golpe posible ni tapar la acción.
+// DAMAGE_SHAKE_MS: 180 ms ≈ 11 frames. Por debajo de 120 ms el golpe apenas se
+//   lee; por encima de ~250 ms la pantalla queda temblando después del impacto
+//   y estorba para recolocarse tras el knockback.
+// DAMAGE_SHAKE_INTENSITY: fracción del ancho de pantalla → 0.010 × 1280 px
+//   = ±13 px de desplazamiento (las escenas compensan el zoom, así que el
+//   temblor mide lo mismo en los dos niveles). Se nota como un impacto sin
+//   marear ni romper la lectura de las plataformas.
+// DAMAGE_SHAKE_INTENSITY_FALL: la caída al vacío cuesta una vida Y reposiciona
+//   al jugador al inicio; el golpe más seco (×1.5) subraya que fue peor.
+export const DAMAGE_SHAKE_MS              = 180;
+export const DAMAGE_SHAKE_INTENSITY       = 0.010;
+export const DAMAGE_SHAKE_INTENSITY_FALL  = 0.015;
+// Destello rojo: sube rápido y baja algo más lento (60 + 140 = 200 ms).
+// El pico de 0.30 tiñe la escena sin ocultarla — a 0.5 ya no se ven los
+// enemigos durante el flash, que es justo cuando hay que reaccionar.
+export const DAMAGE_FLASH_COLOR    = 0xff0000;
+export const DAMAGE_FLASH_ALPHA    = 0.30;
+export const DAMAGE_FLASH_IN_MS    = 60;
+export const DAMAGE_FLASH_OUT_MS   = 140;
 export const PLAYER_KNOCKBACK_X   = 200;
 export const PLAYER_KNOCKBACK_Y   = -250;
 
