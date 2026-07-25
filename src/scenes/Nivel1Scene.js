@@ -35,6 +35,7 @@ import {
     MELEE_COMBO_WINDOW_MS,
     MELEE_COOLDOWN_MS,
     MELEE_OFFSET_X,
+    DEBUG_MODE,
     KEYS
 } from '../config/constants.js';
 import PatrolEnemy from '../entities/PatrolEnemy.js';
@@ -269,8 +270,14 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
             this.leaveTo('MenuScene');
         });
-        this.input.keyboard.on('keydown-L', () => { this.loseLife(); });
-        this.input.keyboard.on('keydown-K', () => { this.killNearestEnemy(); });
+        // ── Teclas de desarrollo (H24) ──
+        // Solo se registran con DEBUG_MODE activo; en la build de entrega L y K
+        // no existen como atajo. loseLife/killNearestEnemy siguen intactos: la
+        // caída al vacío llama a loseLife desde update().
+        if (DEBUG_MODE) {
+            this.input.keyboard.on('keydown-L', () => { this.loseLife(); });
+            this.input.keyboard.on('keydown-K', () => { this.killNearestEnemy(); });
+        }
 
         // ── Overlay de controles y contexto (A3 · H23) ──
         // Va al final de create() para quedar por encima del mundo ya montado.

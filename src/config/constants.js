@@ -89,6 +89,18 @@ export const KEYS = {
     MENU:   'M'
 };
 
+// ── Modo depuración (H24) ──
+// Activa las teclas de desarrollo dentro de los niveles:
+//   L → quitar una vida al jugador (loseLife)
+//   K → matar al enemigo más cercano (killNearestEnemy)
+// Solo condiciona el REGISTRO de esos atajos de teclado; los métodos que
+// invocan siguen usándose fuera del debug (p. ej. la caída al vacío llama a
+// loseLife desde update). La tecla M (volver al menú) es del GDD y no depende
+// de este flag.
+// DEBE QUEDAR EN false PARA LA ENTREGA: con true, cualquiera puede hacer
+// trampa o perder vidas por accidente durante la demo.
+export const DEBUG_MODE           = false;
+
 // Enemigos
 export const PATROL_SPEED         = 60;
 export const PATROL_HP            = 1;
