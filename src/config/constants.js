@@ -21,6 +21,15 @@ export const GRAVITY_Y            = 900;
 export const GAME_WIDTH           = 1280;
 export const GAME_HEIGHT          = 480;
 export const INITIAL_LIVES        = 3;
+// ── Umbral de muerte por caída ──
+// Se mide sobre player.y (centro del sprite) contra mapa.heightInPixels. Los dos
+// niveles usaban valores distintos (N1: > alto-40, N2: >= alto-51) y no eran
+// intercambiables: los héroes tienen geometrías muy distintas y, apoyados en el
+// fondo del mundo, N1 queda en y=452 pero N2 solo en y=432. Con el umbral de N1
+// (440) las caídas de Nivel 2 NO mataban. Se unifica en 51, el único de los dos
+// que dispara en ambos sin falsos positivos sobre la última fila de suelo
+// (N1 y=420, N2 y=400 estando de pie ahí).
+export const FALL_DEATH_MARGIN_Y  = 51;
 export const SCORE_PER_COLLECTIBLE = 10;
 // Alineado con el GDD (500 px/s). Antes estaba en 600.
 export const DASH_VELOCITY        = 500;

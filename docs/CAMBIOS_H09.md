@@ -8,6 +8,9 @@ Las estrellas doradas infinitas pasan a ser un set **finito** de piezas del
 código, repartidas por el nivel, con contador de progreso y victoria al
 reunirlas todas.
 
+De paso se cierran las **4 divergencias** entre `Nivel1Scene` y `Nivel2Scene`
+detectadas en la auditoría (`ESTADO_ACTUAL §3.b`) → ver **§6**.
+
 ---
 
 ## 1. Archivos tocados
@@ -15,8 +18,8 @@ reunirlas todas.
 | Archivo | Cambio |
 |---|---|
 | `src/systems/Fragments.js` | **NUEVO.** Textura del chip, colocación de los fragmentos (reparto + filtro de alcanzabilidad) y feedback de recogida. |
-| `src/config/constants.js` | Nueva constante `FRAGMENTS_PER_LEVEL = 6`. `COLLECTIBLE_COUNT` queda declarada pero ya no la usa nadie. |
-| `src/scenes/Nivel1Scene.js` | Fragmentos en vez de estrellas; sin respawn; contador; victoria por fragmentos. |
+| `src/config/constants.js` | Nueva constante `FRAGMENTS_PER_LEVEL = 6` y `FALL_DEATH_MARGIN_Y = 51` (§6②). `COLLECTIBLE_COUNT` queda declarada pero ya no la usa nadie. |
+| `src/scenes/Nivel1Scene.js` | Fragmentos en vez de estrellas; sin respawn; contador; victoria por fragmentos. Además las 4 correcciones de §6. |
 | `src/scenes/Nivel2Scene.js` | Exactamente los mismos cambios (verificado con `diff` de ambos parches: idénticos línea a línea). |
 
 **No se tocó** `UIScene.js`, `src/entities/`, los mapas JSON, `BootScene.js`
@@ -249,6 +252,125 @@ Lo que **no** se probó tecla a tecla es cada salto de la ruta: la
 alcanzabilidad de las 12 posiciones se validó con el modelo de §4(c) y a mano
 contra la geometría de los mapas, no jugando cada salto. Conviene hacer una
 pasada a mando antes de la entrega.
+
+---
+
+## 6. Las 4 divergencias Nivel 1 / Nivel 2 corregidas
+
+Cuatro trozos de las dos escenas que hacían cosas distintas sin motivo. Ahora el
+`diff` entre `Nivel1Scene.js` y `Nivel2Scene.js` solo devuelve diferencias
+esperadas: claves `p1-`/`p2-` y spritesheets, tilemap, coordenadas de aparición,
+zoom de cámara, temporizador de Nivel 2, textos de la intro y escena destino.
+
+### ① Dash ofensivo — ahora atropella en los DOS niveles
+
+**Antes:** `Nivel2Scene.onPlayerHitEnemy()` trataba el contacto durante el dash
+como un ataque (daño al enemigo, `sfx-hit-enemy`, jugador intacto).
+`Nivel1Scene` no: el mismo movimiento le quitaba una vida al jugador. La misma
+maniobra se leía como ataque en un nivel y como error en el otro.
+
+**Ahora:** ambas escenas usan la versión de Nivel 2, idéntica:
+
+```js
+onPlayerHitEnemy(player, enemy) {
+    if (enemy.isDead) return;
+
+    if (this.isDashing) {
+        Audio.play('sfx-hit-enemy');
+        enemy.takeDamage(MELEE_DAMAGE);
+        return;
+    }
+
+    if (this.isInvulnerable) return;
+    // …knockback + daño, sin cambios
+}
+```
+
+Ojo al orden: la comprobación de `isDashing` va **antes** que la de
+`isInvulnerable`, para que el dash siga siendo ofensivo durante los parpadeos de
+invulnerabilidad posteriores a un golpe.
+
+### ② Umbral de muerte por caída — unificado en `alto - 51`, con `>=`
+
+**Antes:** Nivel 1 `player.y > heightInPixels - 40`; Nivel 2
+`player.y >= heightInPixels - 51`.
+
+**Ahora:** los dos usan la misma expresión, con la constante compartida
+`FALL_DEATH_MARGIN_Y = 51`:
+
+```js
+if (this.player.y >= this.mapa.heightInPixels - FALL_DEATH_MARGIN_Y) {
+    this.loseLife();
+}
+```
+
+**Por qué 51 y no 40:** los dos umbrales *no* eran intercambiables, porque se
+miden sobre `player.y` (centro del sprite) y los dos héroes tienen geometrías
+muy distintas (frame 79×60 con `offset(30,12)` vs. 128×96 con `offset(53,50)`).
+Ambos mapas miden 480 px de alto, igual que los límites del mundo, así que quien
+cae al vacío acaba apoyado en el fondo del mundo:
+
+| | Reposo en el fondo del mundo | Umbral 40 (`> 440`) | Umbral 51 (`>= 429`) |
+|---|---|---|---|
+| Nivel 1 | `y = 452` | dispara | dispara |
+| Nivel 2 | `y = 432` | **NO dispara** | dispara |
+
+Con el valor de Nivel 1, las caídas de Nivel 2 no matarían: el jugador se
+quedaría flotando en el borde inferior del mundo. Con 51 disparan las dos y
+sigue sin haber falsos positivos estando de pie en la fila de suelo más baja
+(Nivel 1 `y = 388`, Nivel 2 `y = 400`; ambos muy por encima de 429).
+
+### ③ Textura de las afterimages del dash — clave dinámica
+
+**Antes:** Nivel 1 creaba los fantasmas con la clave fija `'player1'`; Nivel 2
+con `this.player.texture.key`.
+
+**Ahora** ambas usan la dinámica:
+
+```js
+const ghost = this.add.sprite(this.player.x, this.player.y, this.player.texture.key, this.player.frame.name);
+```
+
+La clave fija funcionaba de casualidad: el héroe de Nivel 1 sale de un único
+spritesheet. En cuanto se le añada una animación desde otro atlas (o se
+reutilice la escena con otro personaje), el fantasma dibujaría el frame N de la
+textura equivocada. La versión dinámica no puede desincronizarse del sprite.
+
+### ④ Import muerto `GAME_HEIGHT`
+
+Se importaba en las dos escenas y no se usaba en ninguna. Eliminado de ambas
+(sigue usándose, y se sigue exportando, para `MenuScene`, `IntroScene`,
+`GameOverScene` y `CreditosScene`). En su hueco entra el import nuevo
+`FALL_DEATH_MARGIN_Y`.
+
+### Pasos de prueba de §6
+
+7. **Dash ofensivo en los dos niveles.** En Nivel 1, correr hacia un enemigo de
+   patrulla y pulsar SHIFT justo antes de tocarlo: el enemigo muere
+   (`sfx-hit-enemy`) y las vidas **no** bajan. Repetir igual en Nivel 2.
+   Contraprueba: tocar al mismo enemigo **sin** dashear → se pierde una vida,
+   como siempre.
+8. **Caída mortal en los dos niveles.** Nivel 1: tirarse por el hueco de la
+   derecha (columna 33, entre la plataforma grande y el borde). Nivel 2:
+   tirarse por el hueco central (columnas 27-34). En ambos casos se pierde una
+   vida y se reaparece. Contraprueba: quedarse quieto de pie sobre el suelo más
+   bajo del mapa (Nivel 2, tramo derecho) → **no** debe morir solo.
+9. **Afterimages.** Dashear en ambos niveles: los cuatro fantasmas azules
+   dibujan el personaje correcto y desaparecen; no queda ninguno pegado.
+
+### Qué se comprobó ya de §6
+
+Ejecutado en el navegador sobre las dos escenas (Phaser 3.80.1, sin errores de
+consola):
+
+| Comprobación | Nivel 1 | Nivel 2 |
+|---|---|---|
+| Dash contra enemigo → `enemy.isDead` | ✅ `true`, vidas 3→3 | ✅ `true`, vidas 3→3 |
+| Contacto sin dash → daño al jugador | ✅ vidas 3→2, invulnerable | ✅ vidas 3→2, invulnerable |
+| Caída al vacío → `loseLife()` | ✅ dispara a `y = 431` | ✅ dispara y reaparece |
+| De pie en el suelo más bajo (sin enemigos) → no muere | ✅ `y = 388` | ✅ `y = 400` |
+| Textura de los fantasmas | ✅ `player1` (del sprite vivo) | ✅ `p2-jump` (del sprite vivo) |
+| Fantasmas/tinte tras el dash | ✅ 0 restantes, sin tinte | ✅ 0 restantes, sin tinte |
 
 ---
 

@@ -21,7 +21,7 @@ import {
     PLAYER_INVULN_MS,
     PLAYER_KNOCKBACK_X,
     PLAYER_KNOCKBACK_Y,
-    GAME_HEIGHT,
+    FALL_DEATH_MARGIN_Y,
     MELEE_HITBOX_W,
     MELEE_HITBOX_H,
     MELEE_DAMAGE,
@@ -289,7 +289,7 @@ export default class Nivel2Scene extends Phaser.Scene {
             if (enemy) enemy.updateAI(this.player, time, _delta);
         });
 
-        if (this.player.y >= this.mapa.heightInPixels - 51) {
+        if (this.player.y >= this.mapa.heightInPixels - FALL_DEATH_MARGIN_Y) {
             this.loseLife();
         }
     }
@@ -575,6 +575,9 @@ export default class Nivel2Scene extends Phaser.Scene {
     onPlayerHitEnemy(player, enemy) {
         if (enemy.isDead) return;
 
+        // Dash ofensivo: atropellar en pleno dash daña al enemigo y no al
+        // jugador. Estaba solo en Nivel 2, así que la misma maniobra se leía
+        // como ataque allí y como error aquí.
         if (this.isDashing) {
             Audio.play('sfx-hit-enemy');
             enemy.takeDamage(MELEE_DAMAGE);

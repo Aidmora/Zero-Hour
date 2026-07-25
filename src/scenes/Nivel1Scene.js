@@ -21,7 +21,7 @@ import {
     PLAYER_INVULN_MS,
     PLAYER_KNOCKBACK_X,
     PLAYER_KNOCKBACK_Y,
-    GAME_HEIGHT,
+    FALL_DEATH_MARGIN_Y,
     MELEE_HITBOX_W,
     MELEE_HITBOX_H,
     MELEE_DAMAGE,
@@ -289,7 +289,7 @@ export default class Nivel1Scene extends Phaser.Scene {
             if (enemy) enemy.updateAI(this.player, time, _delta);
         });
 
-        if (this.player.y > this.mapa.heightInPixels - 40) {
+        if (this.player.y >= this.mapa.heightInPixels - FALL_DEATH_MARGIN_Y) {
             this.loseLife();
         }
     }
@@ -551,7 +551,7 @@ export default class Nivel1Scene extends Phaser.Scene {
                 // está atacando: si no, quedan recortes azules congelados en un
                 // frame de ataque alrededor del personaje.
                 if (!this.isDashing || this.isAttacking) return;
-                const ghost = this.add.sprite(this.player.x, this.player.y, 'player1', this.player.frame.name);
+                const ghost = this.add.sprite(this.player.x, this.player.y, this.player.texture.key, this.player.frame.name);
                 ghost.setFlipX(this.player.flipX);
                 ghost.setScale(this.player.scaleX, this.player.scaleY);
                 ghost.setTint(DASH_TINT);
@@ -573,7 +573,18 @@ export default class Nivel1Scene extends Phaser.Scene {
     }
 
     onPlayerHitEnemy(player, enemy) {
-        if (this.isInvulnerable || enemy.isDead) return;
+        if (enemy.isDead) return;
+
+        // Dash ofensivo: atropellar en pleno dash daña al enemigo y no al
+        // jugador. Estaba solo en Nivel 2, así que la misma maniobra se leía
+        // como ataque allí y como error aquí.
+        if (this.isDashing) {
+            Audio.play('sfx-hit-enemy');
+            enemy.takeDamage(MELEE_DAMAGE);
+            return;
+        }
+
+        if (this.isInvulnerable) return;
 
         const dir = player.x < enemy.x ? -1 : 1;
         player.setVelocity(PLAYER_KNOCKBACK_X * dir, PLAYER_KNOCKBACK_Y);
