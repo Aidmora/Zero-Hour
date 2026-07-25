@@ -3,7 +3,17 @@
 // desplazaba el recorte ~3px por columna, mezclando dos poses por frame.
 export const P1_FRAME_WIDTH       = 79;
 export const P1_FRAME_HEIGHT      = 60;
+// Sustituida por FRAGMENTS_PER_LEVEL (H09); ya no la usa ninguna escena. Se
+// deja declarada para no romper nada que la importe mientras se cierra la rama.
 export const COLLECTIBLE_COUNT     = 5;
+// ── Fragmentos del código de desactivación (H09) ──
+// Piezas FINITAS por nivel: reunirlas todas es la condición de victoria (antes
+// era score >= 300, desconectado de lo que el jugador recogía). Seis obliga a
+// recorrer el mapa entero de los 40 tiles de ancho —las piezas se reparten por
+// las plataformas alcanzables, no se amontonan— sin volverse una tarea de
+// farmeo. Si un mapa no diera para seis huecos alcanzables, la escena usa el
+// número realmente colocado como total (ver systems/Fragments.js).
+export const FRAGMENTS_PER_LEVEL   = 6;
 export const JUMP_VELOCITY        = -500;
 export const DOUBLE_JUMP_VELOCITY = -550;
 export const MAX_JUMPS            = 2;
@@ -11,6 +21,15 @@ export const GRAVITY_Y            = 900;
 export const GAME_WIDTH           = 1280;
 export const GAME_HEIGHT          = 480;
 export const INITIAL_LIVES        = 3;
+// ── Umbral de muerte por caída ──
+// Se mide sobre player.y (centro del sprite) contra mapa.heightInPixels. Los dos
+// niveles usaban valores distintos (N1: > alto-40, N2: >= alto-51) y no eran
+// intercambiables: los héroes tienen geometrías muy distintas y, apoyados en el
+// fondo del mundo, N1 queda en y=452 pero N2 solo en y=432. Con el umbral de N1
+// (440) las caídas de Nivel 2 NO mataban. Se unifica en 51, el único de los dos
+// que dispara en ambos sin falsos positivos sobre el suelo más bajo del mapa
+// (medido de pie ahí: N1 y=388, N2 y=400; ambos muy por encima de 429).
+export const FALL_DEATH_MARGIN_Y  = 51;
 export const SCORE_PER_COLLECTIBLE = 10;
 // Alineado con el GDD (500 px/s). Antes estaba en 600.
 export const DASH_VELOCITY        = 500;
