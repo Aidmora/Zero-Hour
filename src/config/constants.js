@@ -119,6 +119,35 @@ export const KEYS = {
 // trampa o perder vidas por accidente durante la demo.
 export const DEBUG_MODE           = false;
 
+// ── Enemigos pixel-art (F3 · H05) ──
+// Sustituyen a los cuadrados generados con graphics en BootScene.create(), que
+// rompían la estética del jugador. Medidas verificadas sobre los propios PNG:
+// cada hoja divide exacto por su ancho de frame.
+//   Patrullero (seta): 80×64 · Run 8 frames · Die 15 frames
+//   Perseguidor (demonio): 81×71 · Idle 4 · Flying 4 · Hurt 4 · Death 7
+export const PATROL_FRAME_W       = 80;
+export const PATROL_FRAME_H       = 64;
+// El dibujo no ocupa el frame entero: la seta vive en x 24-55, y 29-64 (o sea,
+// apoyada en el borde inferior). El cuerpo físico se ajusta a ESO y no al
+// frame, por eso lleva offset explícito en vez de setSize centrado.
+export const PATROL_BODY_W        = 30;
+export const PATROL_BODY_H        = 34;
+export const PATROL_BODY_OFF_X    = 24;
+export const PATROL_BODY_OFF_Y    = 30;
+
+export const CHASER_FRAME_W       = 81;
+export const CHASER_FRAME_H       = 71;
+// A escala 1 el demonio mide 78×66 px visibles: 2,6 veces el ancho del jugador
+// (17-29 px medidos en player-1.png). A 0.65 queda en ~51×43, más grande que el
+// héroe —es el enemigo de 3 HP— sin parecer un jefe final.
+export const CHASER_SCALE         = 0.65;
+// El cuerpo cubre el torso, NO las alas: golpear con la punta del ala sería
+// injusto. En píxeles de textura; Arcade los escala por CHASER_SCALE.
+export const CHASER_BODY_W        = 44;
+export const CHASER_BODY_H        = 56;
+export const CHASER_BODY_OFF_X    = 18;
+export const CHASER_BODY_OFF_Y    = 10;
+
 // Enemigos
 export const PATROL_SPEED         = 60;
 export const PATROL_HP            = 1;

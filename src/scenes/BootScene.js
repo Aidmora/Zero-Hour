@@ -1,4 +1,11 @@
-import { P1_FRAME_WIDTH, P1_FRAME_HEIGHT } from '../config/constants.js';
+import {
+    P1_FRAME_WIDTH,
+    P1_FRAME_HEIGHT,
+    PATROL_FRAME_W,
+    PATROL_FRAME_H,
+    CHASER_FRAME_W,
+    CHASER_FRAME_H
+} from '../config/constants.js';
 
 const P2_FRAME_W = 128;
 const P2_FRAME_H = 96;
@@ -74,35 +81,32 @@ export default class BootScene extends Phaser.Scene {
                 frameHeight: P2_FRAME_H
             });
         }
+
+        // ── Enemigos pixel-art (F3 · H05) ──
+        // Solo se cargan las hojas que el juego REPRODUCE de verdad, para no
+        // repetir el problema de H16 (7 spritesheets de Thor descargados y
+        // nunca mostrados):
+        //   · El patrullero tiene 1 HP y nunca se detiene → no hay estado idle
+        //     ni de daño posibles; muere del primer golpe. Solo Run y Die.
+        //   · El perseguidor tiene 3 HP y sí alterna quieto/persiguiendo, así
+        //     que usa las cuatro. Su hoja ATTACK queda fuera: la IA no ataca,
+        //     hace daño por contacto.
+        const enemyBase = 'assets/sprites/enemies/';
+        const enemySheets = [
+            ['enemy-patrol-walk', 'enemy-patrol/Mushroom-Run.png', PATROL_FRAME_W, PATROL_FRAME_H],
+            ['enemy-patrol-die',  'enemy-patrol/Mushroom-Die.png', PATROL_FRAME_W, PATROL_FRAME_H],
+            ['enemy-chaser-idle', 'enemy-chaser/IDLE.png',         CHASER_FRAME_W, CHASER_FRAME_H],
+            ['enemy-chaser-fly',  'enemy-chaser/FLYING.png',       CHASER_FRAME_W, CHASER_FRAME_H],
+            ['enemy-chaser-hurt', 'enemy-chaser/HURT.png',         CHASER_FRAME_W, CHASER_FRAME_H],
+            ['enemy-chaser-die',  'enemy-chaser/DEATH.png',        CHASER_FRAME_W, CHASER_FRAME_H]
+        ];
+        for (const [key, file, frameWidth, frameHeight] of enemySheets) {
+            this.load.spritesheet(key, enemyBase + file, { frameWidth, frameHeight });
+        }
     }
 
     create() {
-        // Textura del patrullero (32×32, cuadrado rojo con ojos)
-        const g1 = this.make.graphics({ x: 0, y: 0 }, false);
-        g1.fillStyle(0xcc2222, 1);
-        g1.fillRect(0, 0, 32, 32);
-        g1.fillStyle(0xffffff, 1);
-        g1.fillRect(6, 7, 6, 6);
-        g1.fillRect(20, 7, 6, 6);
-        g1.fillStyle(0x000000, 1);
-        g1.fillRect(8, 9, 3, 3);
-        g1.fillRect(22, 9, 3, 3);
-        g1.generateTexture('enemy-patrol', 32, 32);
-        g1.destroy();
-
-        // Textura del perseguidor (40×40, cuadrado morado con cara enojada)
-        const g2 = this.make.graphics({ x: 0, y: 0 }, false);
-        g2.fillStyle(0x7722cc, 1);
-        g2.fillRect(0, 0, 40, 40);
-        g2.fillStyle(0xffffff, 1);
-        g2.fillRect(8, 10, 8, 7);
-        g2.fillRect(24, 10, 8, 7);
-        g2.fillStyle(0x000000, 1);
-        g2.fillRect(10, 12, 4, 4);
-        g2.fillRect(26, 12, 4, 4);
-        g2.fillRect(10, 26, 20, 3);
-        g2.generateTexture('enemy-chaser', 40, 40);
-        g2.destroy();
+        this.createEnemyAnimations();
 
         // Textura de partícula de doble salto
         const g3 = this.make.graphics({ x: 0, y: 0 }, false);
@@ -139,5 +143,34 @@ export default class BootScene extends Phaser.Scene {
         gs.destroy();
 
         this.scene.start('IntroScene');
+    }
+
+    // ── Animaciones de los enemigos (F3 · H05) ──
+    // Se registran aquí y no en cada nivel porque el AnimationManager es global
+    // al juego: definidas una vez, las usan Nivel 1 y Nivel 2 sin poder
+    // divergir. Las entidades de src/entities/ solo las reproducen.
+    createEnemyAnimations() {
+        const anims = [
+            // clave, hoja, fps, repeat
+            ['enemy-patrol-walk', 'enemy-patrol-walk',  10, -1],
+            // 15 frames: la seta se derrumba y se queda tendida. A 14 fps dura
+            // ~1,1 s, lo justo para leerse antes de que empiece el respawn.
+            ['enemy-patrol-die',  'enemy-patrol-die',   14,  0],
+            ['enemy-chaser-idle', 'enemy-chaser-idle',   6, -1],
+            ['enemy-chaser-fly',  'enemy-chaser-fly',   10, -1],
+            ['enemy-chaser-hurt', 'enemy-chaser-hurt',  12,  0],
+            // 7 frames: el demonio se deshace en humo.
+            ['enemy-chaser-die',  'enemy-chaser-die',   10,  0]
+        ];
+
+        for (const [key, sheet, frameRate, repeat] of anims) {
+            if (this.anims.exists(key)) continue;
+            this.anims.create({
+                key,
+                frames: this.anims.generateFrameNumbers(sheet),
+                frameRate,
+                repeat
+            });
+        }
     }
 }

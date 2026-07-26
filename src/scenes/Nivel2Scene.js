@@ -200,15 +200,16 @@ export default class Nivel2Scene extends Phaser.Scene {
             runChildUpdate: false
         });
 
-        // ── Spawns apoyados en la superficie real (F1 · H18) ──
-        // Misma corrección que en Nivel 1: y = superficie − media altura del
-        // cuerpo (patrullero 20, perseguidor 24). Aquí además el segundo
-        // patrullero aparecía en x=800, FUERA de sus propios límites (820-1070).
+        // ── Spawns apoyados en la superficie real (F1 · H18 · F3) ──
+        // Misma corrección y mismas medidas que en Nivel 1 (patrullero
+        // −34, perseguidor −24 respecto a la superficie). Aquí además el
+        // segundo patrullero aparecía en x=800, FUERA de sus propios límites
+        // (820-1070).
         //
         // Torre izquierda (filas 3-14, cols 0-3) → superficie y=96
-        this.enemies.add(new PatrolEnemy(this, 60, 76, 20, 110));
+        this.enemies.add(new PatrolEnemy(this, 60, 62, 20, 110));
         // Pasarela derecha (fila 3, cols 25-33) → superficie y=96
-        this.enemies.add(new PatrolEnemy(this, 900, 76, 820, 1070));
+        this.enemies.add(new PatrolEnemy(this, 900, 62, 820, 1070));
         // El perseguidor estaba en (800,295), incrustado dentro del tile de la
         // repisa de la fila 9: la física lo expulsaba nada más empezar. Pasa a
         // la planta baja (fila 14, cols 7-26) → superficie y=448, que además le

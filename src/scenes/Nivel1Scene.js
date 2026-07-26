@@ -197,16 +197,20 @@ export default class Nivel1Scene extends Phaser.Scene {
             runChildUpdate: false
         });
 
-        // ── Spawns apoyados en la superficie real (F1 · H18) ──
+        // ── Spawns apoyados en la superficie real (F1 · H18 · F3) ──
         // Los comentarios anteriores describían plataformas que no eran las de
-        // sus coordenadas. La y de spawn se calcula desde la superficie de la
-        // plataforma menos la media altura del cuerpo (patrullero 40/2 = 20,
-        // perseguidor 48/2 = 24), así el enemigo aparece de pie y no cayendo.
+        // sus coordenadas. La y sale de la superficie menos la distancia del
+        // centro del sprite al pie de su cuerpo físico, recalculada con los
+        // sprites pixel-art de F3 (ya no son cuadrados de cuerpo centrado):
+        //   patrullero  → pie a +32 px del centro  ⇒ y = superficie − 34
+        //   perseguidor → pie a +20 px del centro  ⇒ y = superficie − 24
+        // Los 2-4 px de más son holgura deliberada: así el enemigo se posa
+        // cayendo un instante en vez de arriesgarse a nacer dentro del tile.
         //
         // Plataforma alta (filas 2-3, cols 24-32) → superficie y=64
-        this.enemies.add(new PatrolEnemy(this, 800, 44, 800, 1020));
+        this.enemies.add(new PatrolEnemy(this, 800, 30, 800, 1020));
         // Plataforma central-izquierda (filas 13-14, cols 9-13) → superficie y=416
-        this.enemies.add(new PatrolEnemy(this, 350, 396, 290, 415));
+        this.enemies.add(new PatrolEnemy(this, 350, 382, 290, 415));
         // Meseta grande (filas 10-14, cols 20-32) → superficie y=320
         this.enemies.add(new ChaserEnemy(this, 800, 296));
 
