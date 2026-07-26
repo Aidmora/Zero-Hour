@@ -14,6 +14,16 @@ export const COLLECTIBLE_COUNT     = 5;
 // farmeo. Si un mapa no diera para seis huecos alcanzables, la escena usa el
 // número realmente colocado como total (ver systems/Fragments.js).
 export const FRAGMENTS_PER_LEVEL   = 6;
+// ── Cuenta atrás de la bomba / Hora Cero (F2 · H10) ──
+// La narrativa es una bomba con cuenta regresiva, pero solo Nivel 2 tenía
+// temporizador (60 s a pelo dentro de la escena). Ahora los dos niveles corren
+// contra el reloj y los segundos viven aquí, no incrustados en cada escena.
+// Nivel 1 es el primer contacto con los controles y el mapa: 90 s dan margen
+// para explorar las plataformas sin que el reloj sea el enemigo principal.
+// Nivel 2 mantiene los 60 s con los que ya estaba tuneado — menos tiempo en la
+// segunda mitad refuerza que la Hora Cero está encima.
+export const LEVEL1_TIME_SECONDS   = 90;
+export const LEVEL2_TIME_SECONDS   = 60;
 export const JUMP_VELOCITY        = -500;
 export const DOUBLE_JUMP_VELOCITY = -550;
 export const MAX_JUMPS            = 2;

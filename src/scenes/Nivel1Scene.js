@@ -1,5 +1,6 @@
 import {
     FRAGMENTS_PER_LEVEL,
+    LEVEL1_TIME_SECONDS,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
@@ -40,7 +41,7 @@ import {
 } from '../config/constants.js';
 import PatrolEnemy from '../entities/PatrolEnemy.js';
 import ChaserEnemy from '../entities/ChaserEnemy.js';
-import Audio, { LAND_MIN_FALL_SPEED } from '../systems/AudioManager.js';
+import Audio, { LAND_MIN_FALL_SPEED, TIMER_WARNING_SECONDS } from '../systems/AudioManager.js';
 import showLevelIntro from '../systems/LevelIntroOverlay.js';
 import { spawnFragments, playFragmentPickupFx } from '../systems/Fragments.js';
 
@@ -68,12 +69,45 @@ export default class Nivel1Scene extends Phaser.Scene {
         // cambia de escena: sin esto, una caída al vacío dispararía loseLife()
         // en cada frame del fundido.
         this.isEnding = false;
+        // ── Cuenta atrás de la bomba (F2 · H10) ──
+        // El Nivel 1 no tenía reloj pese a que toda la narrativa es una bomba
+        // en marcha. Mismo patrón exacto que Nivel 2 para que los dos niveles
+        // no vuelvan a divergir; los segundos salen de constants.js.
+        this.timeLeft    = LEVEL1_TIME_SECONDS;
+        this.timerWarned = false;
         // Estado para el SFX de aterrizaje (transición aire→suelo).
         this.wasOnGround   = true;
         this.prevFallSpeed = 0;
         this.registry.events.emit('score-changed', this.score);
         this.registry.events.emit('lives-changed', this.lives);
         this.registry.events.emit('dash-ready', true);
+        this.registry.events.emit('time-changed', this.timeLeft);
+
+        this.timeTimer = this.time.addEvent({
+            delay: 1000,
+            callback: () => {
+                // Durante el fundido de salida (victoria o vuelta al menú) el
+                // reloj deja de contar: si no, un nivel ya ganado podía sonar
+                // la alarma o llamar a gameOver a mitad de la transición.
+                if (this.isEnding) return;
+
+                this.timeLeft--;
+                this.registry.events.emit('time-changed', this.timeLeft);
+
+                // Alarma de tiempo bajo: una sola vez al cruzar el umbral,
+                // no en cada tick por debajo de él.
+                if (!this.timerWarned && this.timeLeft <= TIMER_WARNING_SECONDS && this.timeLeft > 0) {
+                    this.timerWarned = true;
+                    Audio.play('sfx-timer-warning');
+                }
+
+                if (this.timeLeft <= 0) {
+                    this.gameOver();
+                }
+            },
+            callbackScope: this,
+            loop: true
+        });
 
         // Matar enemigos sigue puntuando, pero ya no puede ganar el nivel: la
         // victoria depende solo de los fragmentos, así que aquí no se comprueba.
@@ -257,14 +291,14 @@ export default class Nivel1Scene extends Phaser.Scene {
         // ── UIScene en paralelo ──
         this.scene.launch('UIScene');
 
-        // El HUD todavía no existe cuando se colocan los fragmentos, y su
-        // create() no corre hasta el frame siguiente: si emitiéramos el estado
-        // inicial (0/N) allí, nadie lo escucharía. Se emite en cuanto UIScene
-        // está montada.
+        // El HUD todavía no existe cuando se emite el estado inicial al empezar
+        // create(), y su propio create() no corre hasta el frame siguiente:
+        // esos emits se pierden. Se reenvía el estado completo en cuanto
+        // UIScene está montada.
         if (this.scene.isActive('UIScene')) {
-            this.emitFragmentProgress();
+            this.syncHud();
         } else {
-            this.scene.get('UIScene').events.once('create', () => this.emitFragmentProgress());
+            this.scene.get('UIScene').events.once('create', () => this.syncHud());
         }
 
         this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
@@ -467,6 +501,16 @@ export default class Nivel1Scene extends Phaser.Scene {
             Audio.play('sfx-hit-enemy');
             enemy.takeDamage(MELEE_DAMAGE);
         }
+    }
+
+    // Estado completo del HUD, para cuando UIScene acaba de montarse y se ha
+    // perdido lo emitido antes (score, vidas, dash, reloj y fragmentos).
+    syncHud() {
+        this.registry.events.emit('score-changed', this.score);
+        this.registry.events.emit('lives-changed', this.lives);
+        this.registry.events.emit('dash-ready',    this.canDash);
+        this.registry.events.emit('time-changed',  this.timeLeft);
+        this.emitFragmentProgress();
     }
 
     // Señal para el HUD (H07). Payload:

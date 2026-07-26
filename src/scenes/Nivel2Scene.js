@@ -1,5 +1,6 @@
 import {
     FRAGMENTS_PER_LEVEL,
+    LEVEL2_TIME_SECONDS,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
@@ -64,7 +65,9 @@ export default class Nivel2Scene extends Phaser.Scene {
         // targetScore: la victoria dejó de medirse en puntos.
         this.fragmentsCollected = 0;
         this.fragmentsTotal     = 0;
-        this.timeLeft       = 60;  // Tiempo límite (segundos)
+        // Cuenta atrás de la bomba (F2 · H10). Los 60 s de siempre, ahora
+        // declarados en constants.js junto a los del Nivel 1.
+        this.timeLeft       = LEVEL2_TIME_SECONDS;
         // Bloquea update() y las transiciones mientras se funde la música y se
         // cambia de escena (ver leaveTo).
         this.isEnding       = false;
@@ -81,6 +84,11 @@ export default class Nivel2Scene extends Phaser.Scene {
         this.timeTimer = this.time.addEvent({
             delay: 1000,
             callback: () => {
+                // Durante el fundido de salida (victoria o vuelta al menú) el
+                // reloj deja de contar: si no, un nivel ya ganado podía sonar
+                // la alarma o llamar a gameOver a mitad de la transición.
+                if (this.isEnding) return;
+
                 this.timeLeft--;
                 this.registry.events.emit('time-changed', this.timeLeft);
 
@@ -258,14 +266,14 @@ export default class Nivel2Scene extends Phaser.Scene {
         // ── UIScene en paralelo ──
         this.scene.launch('UIScene');
 
-        // El HUD todavía no existe cuando se colocan los fragmentos, y su
-        // create() no corre hasta el frame siguiente: si emitiéramos el estado
-        // inicial (0/N) allí, nadie lo escucharía. Se emite en cuanto UIScene
-        // está montada.
+        // El HUD todavía no existe cuando se emite el estado inicial al empezar
+        // create(), y su propio create() no corre hasta el frame siguiente:
+        // esos emits se pierden. Se reenvía el estado completo en cuanto
+        // UIScene está montada.
         if (this.scene.isActive('UIScene')) {
-            this.emitFragmentProgress();
+            this.syncHud();
         } else {
-            this.scene.get('UIScene').events.once('create', () => this.emitFragmentProgress());
+            this.scene.get('UIScene').events.once('create', () => this.syncHud());
         }
 
         this.input.keyboard.on(`keydown-${KEYS.MENU}`, () => {
@@ -468,6 +476,16 @@ export default class Nivel2Scene extends Phaser.Scene {
             Audio.play('sfx-hit-enemy');
             enemy.takeDamage(MELEE_DAMAGE);
         }
+    }
+
+    // Estado completo del HUD, para cuando UIScene acaba de montarse y se ha
+    // perdido lo emitido antes (score, vidas, dash, reloj y fragmentos).
+    syncHud() {
+        this.registry.events.emit('score-changed', this.score);
+        this.registry.events.emit('lives-changed', this.lives);
+        this.registry.events.emit('dash-ready',    this.canDash);
+        this.registry.events.emit('time-changed',  this.timeLeft);
+        this.emitFragmentProgress();
     }
 
     // Señal para el HUD (H07). Payload:
