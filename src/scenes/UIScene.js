@@ -56,10 +56,10 @@ const HEART_ART = [
     '..XXXX..',
     '...XX...'
 ];
-const HEART_PIXEL = 3;
-const HEART_W     = HEART_ART[0].length * HEART_PIXEL; // 24
-const HEART_H     = HEART_ART.length    * HEART_PIXEL; // 21
-const HEART_GAP   = 6;
+const HEART_PIXEL = 2;
+const HEART_W     = HEART_ART[0].length * HEART_PIXEL; // 16
+const HEART_H     = HEART_ART.length    * HEART_PIXEL; // 14
+const HEART_GAP   = 4;
 
 function makeHeartTexture(scene, key, bodyColor, shineColor) {
     if (scene.textures.exists(key)) return;
@@ -112,26 +112,26 @@ export default class UIScene extends Phaser.Scene {
 
     // Bloque izquierdo: vidas, score y estado del dash.
     buildStatusPanel() {
-        const panel = this.add.rectangle(12, 10, 216, 112, PANEL_FILL, PANEL_ALPHA).setOrigin(0, 0);
+        const panel = this.add.rectangle(10, 8, 168, 74, PANEL_FILL, PANEL_ALPHA).setOrigin(0, 0);
         panel.setStrokeStyle(1, PANEL_STROKE, 0.35);
 
         this.hearts = [];
         for (let i = 0; i < INITIAL_LIVES; i++) {
-            const heart = this.add.image(26 + i * (HEART_W + HEART_GAP), 24, HEART_FULL_KEY);
+            const heart = this.add.image(20 + i * (HEART_W + HEART_GAP), 18, HEART_FULL_KEY);
             heart.setOrigin(0, 0);
             this.hearts.push(heart);
         }
 
-        this.scoreText = this.add.text(26, 56, 'SCORE  0', {
+        this.scoreText = this.add.text(20, 36, 'SCORE  0', {
             fontFamily: 'monospace',
-            fontSize:   '20px',
+            fontSize:   '16px',
             fontStyle:  'bold',
             color:      COLOR_SCORE
         }).setOrigin(0, 0);
 
-        this.dashLabel = this.add.text(26, 88, 'DASH', {
+        this.dashLabel = this.add.text(20, 58, 'DASH', {
             fontFamily: 'monospace',
-            fontSize:   '13px',
+            fontSize:   '11px',
             fontStyle:  'bold',
             color:      COLOR_ACCENT
         }).setOrigin(0, 0);
@@ -139,29 +139,29 @@ export default class UIScene extends Phaser.Scene {
         // Barra de recarga en vez del emoji ⏳: el ancho se rellena durante
         // DASH_COOLDOWN_MS, así el jugador ve CUÁNTO falta y no solo que no
         // está listo. Origen a la izquierda para que crezca hacia la derecha.
-        this.add.rectangle(74, 95, 140, 12, 0x0d1620, 1).setOrigin(0, 0.5)
+        this.add.rectangle(54, 64, 104, 10, 0x0d1620, 1).setOrigin(0, 0.5)
             .setStrokeStyle(1, PANEL_STROKE, 0.3);
-        this.dashBar = this.add.rectangle(76, 95, 136, 8, DASH_READY_FILL, 1).setOrigin(0, 0.5);
+        this.dashBar = this.add.rectangle(56, 64, 100, 6, DASH_READY_FILL, 1).setOrigin(0, 0.5);
     }
 
     // Bloque central: la cuenta atrás de la bomba. Es el dato más grande del
     // HUD a propósito — es lo que puede terminar la partida sin previo aviso.
     buildTimer() {
-        this.timerBox = this.add.container(GAME_WIDTH / 2, 10);
+        this.timerBox = this.add.container(GAME_WIDTH / 2, 8);
 
-        const panel = this.add.rectangle(0, 0, 260, 88, PANEL_FILL, PANEL_ALPHA).setOrigin(0.5, 0);
+        const panel = this.add.rectangle(0, 0, 190, 64, PANEL_FILL, PANEL_ALPHA).setOrigin(0.5, 0);
         panel.setStrokeStyle(2, PANEL_STROKE, 0.55);
 
-        this.timerLabel = this.add.text(0, 10, 'H O R A   C E R O', {
+        this.timerLabel = this.add.text(0, 7, 'H O R A   C E R O', {
             fontFamily: 'monospace',
-            fontSize:   '14px',
+            fontSize:   '11px',
             fontStyle:  'bold',
             color:      COLOR_LABEL
         }).setOrigin(0.5, 0);
 
-        this.timerValue = this.add.text(0, 30, '--:--', {
+        this.timerValue = this.add.text(0, 22, '--:--', {
             fontFamily: 'monospace',
-            fontSize:   '40px',
+            fontSize:   '28px',
             fontStyle:  'bold',
             color:      COLOR_TIMER
         }).setOrigin(0.5, 0);
@@ -176,26 +176,26 @@ export default class UIScene extends Phaser.Scene {
     // ninguna parte —se ganaba con score>=300 sin decirlo—, y ahora ganar es
     // exactamente lo que muestra este contador.
     buildFragments() {
-        this.fragmentsBox = this.add.container(GAME_WIDTH - 12, 10);
+        this.fragmentsBox = this.add.container(GAME_WIDTH - 10, 8);
 
-        const panel = this.add.rectangle(0, 0, 268, 84, PANEL_FILL, PANEL_ALPHA).setOrigin(1, 0);
+        const panel = this.add.rectangle(0, 0, 200, 64, PANEL_FILL, PANEL_ALPHA).setOrigin(1, 0);
         panel.setStrokeStyle(2, PANEL_STROKE, 0.55);
 
-        this.fragmentIcon = this.add.image(-244, 34, FRAGMENT_TEXTURE).setOrigin(0, 0.5);
+        this.fragmentIcon = this.add.image(-186, 28, FRAGMENT_TEXTURE).setOrigin(0, 0.5).setScale(0.75);
 
         // Jerarquía a propósito: "FRAGMENTOS" es la etiqueta pequeña y el X / N
         // va grande. Lo que el jugador consulta de un vistazo es cuánto le
         // falta, no la palabra.
-        this.fragmentsLabel = this.add.text(-208, 10, 'FRAGMENTOS DE CÓDIGO', {
+        this.fragmentsLabel = this.add.text(-160, 8, 'FRAGMENTOS DE CÓDIGO', {
             fontFamily: 'monospace',
-            fontSize:   '12px',
+            fontSize:   '10px',
             fontStyle:  'bold',
             color:      COLOR_LABEL
         }).setOrigin(0, 0);
 
-        this.fragmentsValue = this.add.text(-208, 26, '0 / 0', {
+        this.fragmentsValue = this.add.text(-160, 20, '0 / 0', {
             fontFamily: 'monospace',
-            fontSize:   '30px',
+            fontSize:   '22px',
             fontStyle:  'bold',
             color:      COLOR_ACCENT
         }).setOrigin(0, 0);
@@ -222,10 +222,10 @@ export default class UIScene extends Phaser.Scene {
         this.fragmentPips = [];
         if (!total) return;
 
-        const PIP_W = 16;
-        const PIP_GAP = 5;
+        const PIP_W = 12;
+        const PIP_GAP = 4;
         for (let i = 0; i < total; i++) {
-            const pip = this.add.rectangle(-208 + i * (PIP_W + PIP_GAP), 70, PIP_W, 8, PIP_EMPTY_FILL, 1)
+            const pip = this.add.rectangle(-160 + i * (PIP_W + PIP_GAP), 54, PIP_W, 6, PIP_EMPTY_FILL, 1)
                 .setOrigin(0, 0.5);
             this.fragmentsBox.add(pip);
             this.fragmentPips.push(pip);
@@ -387,15 +387,15 @@ export default class UIScene extends Phaser.Scene {
     showObjectiveBanner(total) {
         if (this.objectiveBanner) this.objectiveBanner.destroy();
 
-        const banner = this.add.container(GAME_WIDTH / 2, 442);
+        const banner = this.add.container(GAME_WIDTH / 2, 448);
         const text = this.add.text(0, 0, `OBJETIVO: reúne los ${total} fragmentos del código antes de la HORA CERO`, {
             fontFamily: 'monospace',
-            fontSize:   '16px',
+            fontSize:   '13px',
             fontStyle:  'bold',
             color:      COLOR_ACCENT
         }).setOrigin(0.5);
 
-        const panel = this.add.rectangle(0, 0, text.width + 40, 34, PANEL_FILL, PANEL_ALPHA).setOrigin(0.5);
+        const panel = this.add.rectangle(0, 0, text.width + 32, 28, PANEL_FILL, PANEL_ALPHA).setOrigin(0.5);
         panel.setStrokeStyle(2, PANEL_STROKE, 0.55);
 
         banner.add([panel, text]);

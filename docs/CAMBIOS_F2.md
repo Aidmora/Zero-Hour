@@ -103,6 +103,25 @@ Solo lo necesario para que los dos niveles no diverjan:
   reloj deja de contar. Sin él, un nivel ya ganado podía sonar la alarma o
   llamar a `gameOver()` a mitad de la transición.
 
+### 2.e — Ajuste de tamaño tras probarlo en pantalla
+
+La primera versión del HUD ocupaba una franja de 122 px (el 25 % del alto de la
+pantalla) y tapaba demasiado juego, sobre todo con la cámara cercana de F1.a.
+Se redujo todo el bloque a ~70 %: la franja pasa a **74 px (15 %)**.
+
+| Elemento | Antes | Ahora |
+|---|---|---|
+| Panel de estado | 216×112 | 168×74 |
+| Panel del timer | 260×88 | 190×64 |
+| Panel de fragmentos | 268×84 | 200×64 |
+| Corazones | 24×21 (píxel ×3) | 16×14 (píxel ×2) |
+| Cifra del timer | 40 px | 28 px |
+| Contador de fragmentos | 30 px | 22 px |
+
+La jerarquía se mantiene intacta: el timer sigue siendo el dato más grande y el
+contador de fragmentos el segundo. Comprobado que ningún texto desborda su panel
+con los valores máximos previsibles (`SCORE 1250`, `FRAGMENTOS DE CÓDIGO`).
+
 ## 3. Contrato de eventos del HUD
 
 `UIScene` escucha del registry, y ya no se pierde ninguno al arrancar:
