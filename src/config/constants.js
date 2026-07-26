@@ -30,6 +30,14 @@ export const MAX_JUMPS            = 2;
 export const GRAVITY_Y            = 900;
 export const GAME_WIDTH           = 1280;
 export const GAME_HEIGHT          = 480;
+// ── Zoom de cámara (F1.a · H03) ──
+// Nivel 1 no llamaba a setZoom (quedaba en 1.0, mapa entero a la vista y el
+// personaje diminuto) y Nivel 2 usaba un 1.5 suelto: al cambiar de nivel la
+// perspectiva y el tamaño del héroe daban un salto. El equipo eligió la cámara
+// CERCANA del Nivel 2, así que 1.5 pasa a ser el valor único de los dos.
+// Los mapas miden 40×15 tiles = 1280×480, justo el viewport: a 1.5 la cámara
+// recorta y sigue al jugador, que es el efecto buscado.
+export const CAMERA_ZOOM          = 1.5;
 export const INITIAL_LIVES        = 3;
 // ── Umbral de muerte por caída ──
 // Se mide sobre player.y (centro del sprite) contra mapa.heightInPixels. Los dos

@@ -1,6 +1,7 @@
 import {
     FRAGMENTS_PER_LEVEL,
     LEVEL1_TIME_SECONDS,
+    CAMERA_ZOOM,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
@@ -196,12 +197,18 @@ export default class Nivel1Scene extends Phaser.Scene {
             runChildUpdate: false
         });
 
-        // Plataforma izquierda (cols 0-5, fila 13) → superficie y=416
-        this.enemies.add(new PatrolEnemy(this, 800, 35, 800, 1020));
-        // Plataforma central-izq (cols 9-13, fila 13) → superficie y=416
-        this.enemies.add(new PatrolEnemy(this, 350, 390, 290, 415));
-        // Plataforma grande (cols 20-32, fila 10) → superficie y=320
-        this.enemies.add(new ChaserEnemy(this, 800, 295));
+        // ── Spawns apoyados en la superficie real (F1 · H18) ──
+        // Los comentarios anteriores describían plataformas que no eran las de
+        // sus coordenadas. La y de spawn se calcula desde la superficie de la
+        // plataforma menos la media altura del cuerpo (patrullero 40/2 = 20,
+        // perseguidor 48/2 = 24), así el enemigo aparece de pie y no cayendo.
+        //
+        // Plataforma alta (filas 2-3, cols 24-32) → superficie y=64
+        this.enemies.add(new PatrolEnemy(this, 800, 44, 800, 1020));
+        // Plataforma central-izquierda (filas 13-14, cols 9-13) → superficie y=416
+        this.enemies.add(new PatrolEnemy(this, 350, 396, 290, 415));
+        // Meseta grande (filas 10-14, cols 20-32) → superficie y=320
+        this.enemies.add(new ChaserEnemy(this, 800, 296));
 
         this.physics.add.collider(this.enemies, this.capaSuelo);
         this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, null, this);
@@ -270,10 +277,15 @@ export default class Nivel1Scene extends Phaser.Scene {
         }
 
         // ── Cámara ──
+        // setBounds antes que startFollow: con el zoom a 1.5 la cámara ya no
+        // abarca el mapa entero y empieza a hacer scroll, así que los límites
+        // son los que impiden ver fuera del nivel en los bordes.
         this.cameras.main.setBounds(0, 0, this.mapa.widthInPixels, this.mapa.heightInPixels);
         this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+        this.cameras.main.setZoom(CAMERA_ZOOM);
 
         // ── Feedback de daño (H21) ──
+        // Después de setZoom: el rectángulo del destello se escala por 1/zoom.
         this.createDamageFlash();
 
         // ── Controles (esquema único desde constants.KEYS) ──
@@ -640,7 +652,9 @@ export default class Nivel1Scene extends Phaser.Scene {
     // Rectángulo del destello: se crea una sola vez y se reutiliza en cada
     // golpe. Va anclado al centro de la cámara con scrollFactor 0 y escalado
     // por 1/zoom (mismo truco que LevelIntroOverlay), para que cubra exacto la
-    // pantalla tanto aquí (zoom 1) como en Nivel 2 (zoom 1.5).
+    // pantalla. Desde F1.a los dos niveles comparten CAMERA_ZOOM, pero la
+    // compensación se mantiene: es lo que hace que el efecto no dependa del
+    // valor concreto del zoom.
     createDamageFlash() {
         const cam = this.cameras.main;
         this.damageFlash = this.add.rectangle(

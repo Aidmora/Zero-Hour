@@ -39,7 +39,11 @@ export default class BootScene extends Phaser.Scene {
         this.load.tilemapTiledJSON('map-nivel1', 'assets/maps/nivel-1-new.json');
         this.load.tilemapTiledJSON('map-nivel2', 'assets/maps/nivel-2.json');
         this.load.image('tiles-nivel1', 'assets/tilesets/background.png');
-        this.load.image('tiles-nivel2', 'assets/tilesets/background.png');
+        // Nivel 2 con atlas propio (F1.b · H06): antes cargaba el mismo
+        // background.png que el Nivel 1 y por eso los dos niveles se veían
+        // idénticos. industrial-tiles.png es el bloque de rejilla válida de
+        // background-industrial.png (ver docs/CAMBIOS_F1.md).
+        this.load.image('tiles-nivel2', 'assets/tilesets/industrial-tiles.png');
         this.load.image('bg-real', 'assets/background/background.jpg');
 
         this.load.spritesheet('player1', 'assets/sprites/player-1.png', {

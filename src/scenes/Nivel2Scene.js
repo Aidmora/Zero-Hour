@@ -1,6 +1,7 @@
 import {
     FRAGMENTS_PER_LEVEL,
     LEVEL2_TIME_SECONDS,
+    CAMERA_ZOOM,
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
@@ -120,12 +121,20 @@ export default class Nivel2Scene extends Phaser.Scene {
 
         // ── Tilemap ──
         this.mapa = this.make.tilemap({ key: 'map-nivel2' });
-        const tileset = this.mapa.addTilesetImage('background', 'tiles-nivel2');
+        // 'industrial' es el nombre interno del tileset tras el remapeo (F1.b);
+        // antes era 'background', el mismo atlas que el Nivel 1.
+        const tileset = this.mapa.addTilesetImage('industrial', 'tiles-nivel2');
 
         // ── Fondo ──
         // Añadimos la imagen de fondo antes de la capa de suelo para que se dibuje por detrás
         this.bg = this.add.image(0, 0, 'bg-real').setOrigin(0, 0);
         this.bg.setDisplaySize(this.mapa.widthInPixels, this.mapa.heightInPixels);
+        // No existe una segunda imagen de fondo en el proyecto, así que el
+        // cielo del Nivel 2 se diferencia tiñendo el mismo bitmap. Se probó
+        // también un azul frío, pero la piedra del tileset nuevo YA es azul y
+        // las plataformas se perdían contra el cielo; este ámbar de humo las
+        // recorta y aleja la Fortaleza del malva del Almacén.
+        this.bg.setTint(0xd8a878);
 
         this.capaSuelo = this.mapa.createLayer('Tile Layer 1', tileset, 0, 0);
         this.capaSuelo.setCollisionByExclusion([-1, 0]);
@@ -191,9 +200,20 @@ export default class Nivel2Scene extends Phaser.Scene {
             runChildUpdate: false
         });
 
-        this.enemies.add(new PatrolEnemy(this, 30, 40, 20, 110));
-        this.enemies.add(new PatrolEnemy(this, 800, 40, 820, 1070));
-        this.enemies.add(new ChaserEnemy(this, 800, 295));
+        // ── Spawns apoyados en la superficie real (F1 · H18) ──
+        // Misma corrección que en Nivel 1: y = superficie − media altura del
+        // cuerpo (patrullero 20, perseguidor 24). Aquí además el segundo
+        // patrullero aparecía en x=800, FUERA de sus propios límites (820-1070).
+        //
+        // Torre izquierda (filas 3-14, cols 0-3) → superficie y=96
+        this.enemies.add(new PatrolEnemy(this, 60, 76, 20, 110));
+        // Pasarela derecha (fila 3, cols 25-33) → superficie y=96
+        this.enemies.add(new PatrolEnemy(this, 900, 76, 820, 1070));
+        // El perseguidor estaba en (800,295), incrustado dentro del tile de la
+        // repisa de la fila 9: la física lo expulsaba nada más empezar. Pasa a
+        // la planta baja (fila 14, cols 7-26) → superficie y=448, que además le
+        // da recorrido de verdad para perseguir.
+        this.enemies.add(new ChaserEnemy(this, 700, 424));
 
         this.physics.add.collider(this.enemies, this.capaSuelo);
         this.physics.add.overlap(this.player,      this.enemies,   this.onPlayerHitEnemy, null, this);
@@ -245,7 +265,7 @@ export default class Nivel2Scene extends Phaser.Scene {
         // ── Cámara ──
         this.cameras.main.setBounds(0, 0, this.mapa.widthInPixels, this.mapa.heightInPixels);
         this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-        this.cameras.main.setZoom(1.5);
+        this.cameras.main.setZoom(CAMERA_ZOOM);
 
         // ── Feedback de daño (H21) ──
         // Después de setZoom: el rectángulo del destello se escala por 1/zoom.
@@ -615,7 +635,9 @@ export default class Nivel2Scene extends Phaser.Scene {
     // Rectángulo del destello: se crea una sola vez y se reutiliza en cada
     // golpe. Va anclado al centro de la cámara con scrollFactor 0 y escalado
     // por 1/zoom (mismo truco que LevelIntroOverlay), para que cubra exacto la
-    // pantalla tanto aquí (zoom 1.5) como en Nivel 1 (zoom 1).
+    // pantalla. Desde F1.a los dos niveles comparten CAMERA_ZOOM, pero la
+    // compensación se mantiene: es lo que hace que el efecto no dependa del
+    // valor concreto del zoom.
     createDamageFlash() {
         const cam = this.cameras.main;
         this.damageFlash = this.add.rectangle(
