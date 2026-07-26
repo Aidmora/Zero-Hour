@@ -31,7 +31,10 @@ const COLOR_DONE    = '#66ffaa'; // código completo
 const DASH_READY_FILL   = 0x66ccff;
 const DASH_CHARGE_FILL  = 0x2f4658;
 const PIP_FULL_FILL     = 0x00ffff;
-const PIP_EMPTY_FILL    = 0x1b2b34;
+// Probado en pantalla: con 0x1b2b34 las marcas pendientes se perdían contra el
+// panel y el jugador solo veía la que ya tenía. Este tono aguanta el contraste
+// sin competir con las recogidas.
+const PIP_EMPTY_FILL    = 0x38596b;
 
 const HEART_FULL_KEY  = 'ui-heart-full';
 const HEART_EMPTY_KEY = 'ui-heart-empty';
@@ -222,7 +225,7 @@ export default class UIScene extends Phaser.Scene {
         const PIP_W = 16;
         const PIP_GAP = 5;
         for (let i = 0; i < total; i++) {
-            const pip = this.add.rectangle(-208 + i * (PIP_W + PIP_GAP), 70, PIP_W, 6, PIP_EMPTY_FILL, 1)
+            const pip = this.add.rectangle(-208 + i * (PIP_W + PIP_GAP), 70, PIP_W, 8, PIP_EMPTY_FILL, 1)
                 .setOrigin(0, 0.5);
             this.fragmentsBox.add(pip);
             this.fragmentPips.push(pip);
